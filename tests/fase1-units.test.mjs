@@ -17,6 +17,14 @@ const { buildReportSummary } = loadTsModule(
 const { buildTextDownload, buildJsonDownload } = loadTsModule(
   "src/platform/download/files.ts"
 );
+const {
+  hasCapability,
+  requireCapability
+} = loadTsModule("src/platform/permissions/capabilities.ts");
+const {
+  createLocalControlledSession,
+  getCurrentSessionPlaceholder
+} = loadTsModule("src/platform/auth/session-placeholder.ts");
 
 test("parseReportPeriod accepts a valid period", () => {
   const result = parseReportPeriod(
@@ -296,6 +304,97 @@ test("toHttpResponse serializes safe app errors", async () => {
       message: "Parametros invalidos."
     }
   });
+});
+
+test("getCurrentSessionPlaceholder does not create a production session", () => {
+  assert.equal(getCurrentSessionPlaceholder(), null);
+});
+
+test("createLocalControlledSession creates a local non-production session model", () => {
+  const session = createLocalControlledSession(["view_report"]);
+
+  assert.equal(session.provider, "local-controlled");
+  assert.equal(session.user.userId, "local-controlled-user");
+  assert.deepEqual(session.capabilities, ["view_report"]);
+});
+
+test("hasCapability returns true when the session has the capability", () => {
+  const session = createLocalControlledSession(["view_report"]);
+
+  assert.equal(hasCapability(session, "view_report"), true);
+});
+
+test("hasCapability returns false when there is no session", () => {
+  assert.equal(hasCapability(null, "view_report"), false);
+});
+
+test("hasCapability returns false when the capability is missing", () => {
+  const session = createLocalControlledSession(["download_json"]);
+
+  assert.equal(hasCapability(session, "view_report"), false);
+});
+
+test("requireCapability allows a session with the required capability", () => {
+  const session = createLocalControlledSession(["view_report"]);
+  const result = requireCapability(session, "view_report");
+
+  assert.equal(result.ok, true);
+  assert.equal(result.data, session);
+});
+
+test("requireCapability returns AUTH_REQUIRED when there is no session", () => {
+  const result = requireCapability(null, "view_report");
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, "AUTH_REQUIRED");
+  assert.equal(result.error.status, 401);
+});
+
+test("requireCapability returns FORBIDDEN when the capability is missing", () => {
+  const session = createLocalControlledSession(["download_json"]);
+  const result = requireCapability(session, "view_report");
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, "FORBIDDEN");
+  assert.equal(result.error.status, 403);
+});
+
+test("toHttpResponse serializes AUTH_REQUIRED without stack traces or secrets", async () => {
+  const response = toHttpResponse({
+    code: "AUTH_REQUIRED",
+    message: "Se requiere sesion para acceder a este recurso.",
+    status: 401
+  });
+  const body = await response.json();
+
+  assert.equal(response.status, 401);
+  assert.deepEqual(body, {
+    error: {
+      code: "AUTH_REQUIRED",
+      message: "Se requiere sesion para acceder a este recurso."
+    }
+  });
+  assert.equal(JSON.stringify(body).includes("stack"), false);
+  assert.equal(JSON.stringify(body).includes("X-API-Key"), false);
+});
+
+test("toHttpResponse serializes FORBIDDEN without stack traces or secrets", async () => {
+  const response = toHttpResponse({
+    code: "FORBIDDEN",
+    message: "La sesion no tiene permisos para esta accion.",
+    status: 403
+  });
+  const body = await response.json();
+
+  assert.equal(response.status, 403);
+  assert.deepEqual(body, {
+    error: {
+      code: "FORBIDDEN",
+      message: "La sesion no tiene permisos para esta accion."
+    }
+  });
+  assert.equal(JSON.stringify(body).includes("stack"), false);
+  assert.equal(JSON.stringify(body).includes("X-API-Key"), false);
 });
 
 test("buildReportSummary keeps a safe fallback for simple JSON", () => {
