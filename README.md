@@ -142,3 +142,9 @@ Arquitectura prohibida:
 ```text
 Browser -> Cloud Run FastAPI con X-API-Key
 ```
+
+La matriz de controles futuros y bloqueantes para exposicion publica esta documentada en:
+
+```text
+docs/matriz_controles_futuros.md
+```
