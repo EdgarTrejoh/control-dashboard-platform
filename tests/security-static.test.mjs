@@ -1,5 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
+import { pathToFileURL } from "node:url";
 import test from "node:test";
 import assert from "node:assert/strict";
 
@@ -51,6 +52,34 @@ test("browser-facing source does not send X-API-Key", async () => {
   }
 
   assert.deepEqual(offenders, []);
+});
+
+test("next config defines minimum security headers", async () => {
+  const { default: nextConfig } = await import(
+    pathToFileURL(join(root, "next.config.mjs"))
+  );
+
+  assert.equal(nextConfig.poweredByHeader, false);
+  assert.equal(typeof nextConfig.headers, "function");
+
+  const headerRules = await nextConfig.headers();
+  assert.equal(headerRules.length, 1);
+  assert.equal(headerRules[0].source, "/:path*");
+
+  const headers = Object.fromEntries(
+    headerRules[0].headers.map(({ key, value }) => [key, value])
+  );
+
+  assert.deepEqual(headers, {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "X-Frame-Options": "DENY",
+    "Content-Security-Policy":
+      "frame-ancestors 'none'; object-src 'none'; base-uri 'self'",
+    "Permissions-Policy":
+      "camera=(), microphone=(), geolocation=(), payment=(), usb=(), clipboard-write=(self)"
+  });
+  assert.equal(headers["Strict-Transport-Security"], undefined);
 });
 
 async function collectFiles(dir) {
