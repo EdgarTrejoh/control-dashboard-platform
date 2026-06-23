@@ -298,23 +298,112 @@ test("toHttpResponse serializes safe app errors", async () => {
   });
 });
 
-test("buildReportSummary summarizes primitive and structured values", () => {
+test("buildReportSummary keeps a safe fallback for simple JSON", () => {
   const summary = buildReportSummary({
     title: "Reporte",
     amount: 12,
     active: true,
     rows: [1, 2, 3],
-    metadata: { source: "api", year: 2026 },
     missing: null
   });
 
   assert.deepEqual(summary, [
-    { label: "Title", value: "Reporte" },
-    { label: "Amount", value: "12" },
-    { label: "Active", value: "true" },
-    { label: "Rows", value: "3 elementos" },
-    { label: "Metadata", value: "2 campos" },
-    { label: "Missing", value: "Sin dato" }
+    {
+      label: "Estado del resumen",
+      value: "No se detectaron campos ejecutivos esperados; se muestra fallback"
+    },
+    { label: "Campo: Title", value: "Reporte" },
+    { label: "Campo: Amount", value: "12" },
+    { label: "Campo: Active", value: "true" },
+    { label: "Campo: Rows", value: "3 elementos" },
+    { label: "Campo: Missing", value: "Sin dato" }
+  ]);
+});
+
+test("buildReportSummary identifies period fields when present", () => {
+  const summary = buildReportSummary({
+    current_year: 2026,
+    previous_year: 2025,
+    month_limit: 6,
+    other: "ignored until fallback"
+  });
+
+  assert.deepEqual(summary.slice(0, 3), [
+    { label: "Periodo: Current Year", value: "2,026" },
+    { label: "Periodo: Previous Year", value: "2,025" },
+    { label: "Periodo: Month Limit", value: "6" }
+  ]);
+});
+
+test("buildReportSummary identifies numeric metrics when present", () => {
+  const summary = buildReportSummary({
+    monto_colocado_actual: 1234567.891,
+    creditos_formalizados: 3456,
+    ticket_promedio: 98765.432,
+    descripcion: "datos ejecutivos"
+  });
+
+  assert.deepEqual(summary.slice(0, 3), [
+    { label: "Metrica: Monto Colocado Actual", value: "1,234,567.89" },
+    { label: "Metrica: Creditos Formalizados", value: "3,456" },
+    { label: "Metrica: Ticket Promedio", value: "98,765.43" }
+  ]);
+});
+
+test("buildReportSummary identifies relevant array sections", () => {
+  const summary = buildReportSummary({
+    ranking_estados: [{ estado: "A" }, { estado: "B" }],
+    familias_linea: ["tradicional", "mejoravit"]
+  });
+
+  assert.deepEqual(summary.slice(0, 2), [
+    { label: "Seccion: Ranking Estados", value: "2 elementos" },
+    { label: "Seccion: Familias Linea", value: "2 elementos" }
+  ]);
+});
+
+test("buildReportSummary identifies relevant nested object sections", () => {
+  const summary = buildReportSummary({
+    contexto_inflacion: {
+      actual: 4.2,
+      previo: 5.1
+    },
+    metodologia: {
+      fuente: "backend",
+      modo: "read-only"
+    }
+  });
+
+  assert.deepEqual(summary.slice(0, 2), [
+    { label: "Seccion: Contexto Inflacion", value: "2 campos" },
+    { label: "Seccion: Metodologia", value: "2 campos" }
+  ]);
+});
+
+test("buildReportSummary returns a safe message for empty JSON", () => {
+  const summary = buildReportSummary({});
+
+  assert.deepEqual(summary, [
+    {
+      label: "Estado del reporte",
+      value: "JSON recibido sin campos para resumir"
+    }
+  ]);
+});
+
+test("buildReportSummary handles unexpected JSON without inventing data", () => {
+  const summary = buildReportSummary({
+    alpha: Symbol("unusual"),
+    beta: undefined
+  });
+
+  assert.deepEqual(summary, [
+    {
+      label: "Estado del resumen",
+      value: "No se detectaron campos ejecutivos esperados; se muestra fallback"
+    },
+    { label: "Campo: Alpha", value: "Dato disponible" },
+    { label: "Campo: Beta", value: "Sin dato" }
   ]);
 });
 
