@@ -34,6 +34,46 @@ test("forbidden public secret patterns are absent", async () => {
   assert.deepEqual(offenders, []);
 });
 
+test("auth secrets are not declared as NEXT_PUBLIC variables", async () => {
+  const files = await collectFiles(root);
+  const offenders = [];
+
+  for (const file of files) {
+    const content = await readFile(file, "utf8");
+    const path = relative(root, file);
+
+    if (path.endsWith("security-static.test.mjs")) {
+      continue;
+    }
+
+    if (shouldSkipDocumentation(path)) {
+      continue;
+    }
+
+    if (/NEXT_PUBLIC_AUTH_|NEXT_PUBLIC_GOOGLE_|NEXT_PUBLIC_.*SECRET/.test(content)) {
+      offenders.push(path);
+    }
+  }
+
+  assert.deepEqual(offenders, []);
+});
+
+test("Google OAuth secret is not referenced from browser-facing source", async () => {
+  const files = await collectFiles(join(root, "src"));
+  const offenders = [];
+
+  for (const file of files) {
+    const path = relative(root, file);
+    const content = await readFile(file, "utf8");
+
+    if (content.includes("AUTH_GOOGLE_SECRET")) {
+      offenders.push(path);
+    }
+  }
+
+  assert.deepEqual(offenders, []);
+});
+
 test("browser-facing source does not send X-API-Key", async () => {
   const files = await collectFiles(join(root, "src"));
   const offenders = [];
@@ -47,6 +87,30 @@ test("browser-facing source does not send X-API-Key", async () => {
     }
 
     if (content.includes("X-API-Key")) {
+      offenders.push(path);
+    }
+  }
+
+  assert.deepEqual(offenders, []);
+});
+
+test("executable source does not add direct Supabase clients", async () => {
+  const files = await collectFiles(root);
+  const offenders = [];
+
+  for (const file of files) {
+    const path = relative(root, file);
+    const content = await readFile(file, "utf8");
+
+    if (path.endsWith("security-static.test.mjs")) {
+      continue;
+    }
+
+    if (shouldSkipDocumentation(path)) {
+      continue;
+    }
+
+    if (/@supabase\/supabase-js|createClient\(|DATABASE_URL/.test(content)) {
       offenders.push(path);
     }
   }

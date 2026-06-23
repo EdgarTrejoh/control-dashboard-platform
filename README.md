@@ -149,6 +149,12 @@ La matriz de controles futuros y bloqueantes para exposicion publica esta docume
 docs/matriz_controles_futuros.md
 ```
 
+La planeacion e implementacion inicial de Closed Alpha 1 esta documentada en:
+
+```text
+docs/closed_alpha_1_auth_allowlist.md
+```
+
 El modelo conceptual de datos para identidad, usuarios, auditoria, uso, preferencias y secretos esta documentado en:
 
 ```text

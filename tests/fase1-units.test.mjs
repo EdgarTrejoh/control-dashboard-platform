@@ -25,6 +25,14 @@ const {
   createLocalControlledSession,
   getCurrentSessionPlaceholder
 } = loadTsModule("src/platform/auth/session-placeholder.ts");
+const {
+  getAlphaAccessConfig,
+  getAlphaCapabilities,
+  getAlphaRole,
+  normalizeEmail,
+  validateAlphaConfig,
+  validateAlphaProfileAccess
+} = loadTsModule("src/platform/auth/alpha-access.ts");
 
 test("parseReportPeriod accepts a valid period", () => {
   const result = parseReportPeriod(
@@ -395,6 +403,121 @@ test("toHttpResponse serializes FORBIDDEN without stack traces or secrets", asyn
   });
   assert.equal(JSON.stringify(body).includes("stack"), false);
   assert.equal(JSON.stringify(body).includes("X-API-Key"), false);
+});
+
+test("alpha allowlist accepts an invited email", () => {
+  const config = getAlphaAccessConfig({
+    ALPHA_ALLOWED_EMAILS: "Tester@Example.com",
+    ALPHA_SUPER_ADMIN_EMAIL: "tester@example.com",
+    ALPHA_MAX_INVITED_USERS: "5"
+  });
+  const result = validateAlphaProfileAccess(
+    {
+      email: " tester@example.com ",
+      emailVerified: true
+    },
+    config
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.email, "tester@example.com");
+});
+
+test("alpha allowlist rejects a non-invited email", () => {
+  const config = getAlphaAccessConfig({
+    ALPHA_ALLOWED_EMAILS: "invited@example.com",
+    ALPHA_SUPER_ADMIN_EMAIL: "invited@example.com",
+    ALPHA_MAX_INVITED_USERS: "5"
+  });
+  const result = validateAlphaProfileAccess(
+    {
+      email: "other@example.com",
+      emailVerified: true
+    },
+    config
+  );
+
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /no esta invitado/i);
+});
+
+test("alpha allowlist rejects more than five invited emails", () => {
+  const config = getAlphaAccessConfig({
+    ALPHA_ALLOWED_EMAILS:
+      "a@example.com,b@example.com,c@example.com,d@example.com,e@example.com,f@example.com",
+    ALPHA_SUPER_ADMIN_EMAIL: "a@example.com",
+    ALPHA_MAX_INVITED_USERS: "5"
+  });
+  const result = validateAlphaConfig(config);
+
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /maximo/i);
+});
+
+test("alpha config requires super admin to be inside allowlist", () => {
+  const config = getAlphaAccessConfig({
+    ALPHA_ALLOWED_EMAILS: "tester@example.com",
+    ALPHA_SUPER_ADMIN_EMAIL: "admin@example.com",
+    ALPHA_MAX_INVITED_USERS: "5"
+  });
+  const result = validateAlphaConfig(config);
+
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /SUPER_ADMIN/i);
+});
+
+test("alpha access rejects Google profiles marked as unverified", () => {
+  const config = getAlphaAccessConfig({
+    ALPHA_ALLOWED_EMAILS: "tester@example.com",
+    ALPHA_SUPER_ADMIN_EMAIL: "tester@example.com",
+    ALPHA_MAX_INVITED_USERS: "5"
+  });
+  const result = validateAlphaProfileAccess(
+    {
+      email: "tester@example.com",
+      emailVerified: false
+    },
+    config
+  );
+
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /no verificado/i);
+});
+
+test("alpha_tester receives expected capabilities", () => {
+  assert.deepEqual(getAlphaCapabilities("alpha_tester"), [
+    "view_report",
+    "download_markdown",
+    "download_json",
+    "download_pdf",
+    "use_ai"
+  ]);
+});
+
+test("super_admin receives admin_users capability", () => {
+  assert.deepEqual(getAlphaCapabilities("super_admin"), [
+    "view_report",
+    "download_markdown",
+    "download_json",
+    "download_pdf",
+    "use_ai",
+    "admin_users"
+  ]);
+});
+
+test("alpha role maps super admin by normalized email", () => {
+  const config = getAlphaAccessConfig({
+    ALPHA_ALLOWED_EMAILS: "admin@example.com,tester@example.com",
+    ALPHA_SUPER_ADMIN_EMAIL: "Admin@Example.com",
+    ALPHA_MAX_INVITED_USERS: "5"
+  });
+
+  assert.equal(getAlphaRole(" ADMIN@example.com ", config), "super_admin");
+  assert.equal(getAlphaRole("tester@example.com", config), "alpha_tester");
+});
+
+test("normalizeEmail lowercases and trims email values", () => {
+  assert.equal(normalizeEmail(" Tester@Example.COM "), "tester@example.com");
 });
 
 test("buildReportSummary keeps a safe fallback for simple JSON", () => {
