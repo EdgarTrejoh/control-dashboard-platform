@@ -148,3 +148,9 @@ La matriz de controles futuros y bloqueantes para exposicion publica esta docume
 ```text
 docs/matriz_controles_futuros.md
 ```
+
+El modelo conceptual de datos para identidad, usuarios, auditoria, uso, preferencias y secretos esta documentado en:
+
+```text
+docs/fase_2a_1b_modelo_datos_identidad_auditoria.md
+```
