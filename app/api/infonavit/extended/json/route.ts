@@ -1,22 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { getExtendedReportJson } from "@/modules/infonavit/api/infonavit-service";
-import { parseReportPeriod } from "@/modules/infonavit/api/period";
-import { toHttpResponse } from "@/platform/errors/http-response";
+import { handleExtendedReportRequest } from "@/modules/infonavit/api/extended-report-route-handlers";
+import { getCurrentPlatformSession } from "@/platform/auth/auth-session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const period = parseReportPeriod(request.nextUrl.searchParams);
-
-  if (!period.ok) {
-    return toHttpResponse(period.error);
-  }
-
-  const result = await getExtendedReportJson(period.data);
-
-  if (!result.ok) {
-    return toHttpResponse(result.error);
-  }
-
-  return NextResponse.json(result.data);
+  return handleExtendedReportRequest(request, {
+    getSession: getCurrentPlatformSession,
+    getReport: getExtendedReportJson
+  });
 }

@@ -155,6 +155,12 @@ La planeacion e implementacion inicial de Closed Alpha 1 esta documentada en:
 docs/closed_alpha_1_auth_allowlist.md
 ```
 
+El gate server-side `view_report` de Closed Alpha 2 esta documentado en:
+
+```text
+docs/closed_alpha_2_view_report_gate.md
+```
+
 El modelo conceptual de datos para identidad, usuarios, auditoria, uso, preferencias y secretos esta documentado en:
 
 ```text

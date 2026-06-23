@@ -33,6 +33,9 @@ const {
   validateAlphaConfig,
   validateAlphaProfileAccess
 } = loadTsModule("src/platform/auth/alpha-access.ts");
+const { handleExtendedReportRequest } = loadTsModule(
+  "src/modules/infonavit/api/extended-report-route-handlers.ts"
+);
 
 test("parseReportPeriod accepts a valid period", () => {
   const result = parseReportPeriod(
@@ -520,6 +523,124 @@ test("normalizeEmail lowercases and trims email values", () => {
   assert.equal(normalizeEmail(" Tester@Example.COM "), "tester@example.com");
 });
 
+test("extended JSON endpoint rejects missing session with 401", async () => {
+  let reportCalled = false;
+  const response = await handleExtendedReportRequest(reportRequest(), {
+    async getSession() {
+      return null;
+    },
+    async getReport() {
+      reportCalled = true;
+      return { ok: true, data: { shouldNotRun: true } };
+    }
+  });
+  const body = await response.json();
+
+  assert.equal(response.status, 401);
+  assert.equal(body.error.code, "AUTH_REQUIRED");
+  assert.equal(JSON.stringify(body).includes("stack"), false);
+  assert.equal(JSON.stringify(body).includes("X-API-Key"), false);
+  assert.equal(reportCalled, false);
+});
+
+test("extended Markdown endpoint rejects missing session with 401", async () => {
+  let reportCalled = false;
+  const response = await handleExtendedReportRequest(reportRequest(), {
+    async getSession() {
+      return null;
+    },
+    async getReport() {
+      reportCalled = true;
+      return { ok: true, data: { markdown: "# No deberia correr" } };
+    }
+  });
+  const body = await response.json();
+
+  assert.equal(response.status, 401);
+  assert.equal(body.error.code, "AUTH_REQUIRED");
+  assert.equal(JSON.stringify(body).includes("stack"), false);
+  assert.equal(JSON.stringify(body).includes("X-API-Key"), false);
+  assert.equal(reportCalled, false);
+});
+
+test("extended JSON endpoint rejects session without view_report with 403", async () => {
+  let reportCalled = false;
+  const response = await handleExtendedReportRequest(reportRequest(), {
+    async getSession() {
+      return createLocalControlledSession(["download_json"]);
+    },
+    async getReport() {
+      reportCalled = true;
+      return { ok: true, data: { shouldNotRun: true } };
+    }
+  });
+  const body = await response.json();
+
+  assert.equal(response.status, 403);
+  assert.equal(body.error.code, "FORBIDDEN");
+  assert.equal(JSON.stringify(body).includes("stack"), false);
+  assert.equal(JSON.stringify(body).includes("X-API-Key"), false);
+  assert.equal(reportCalled, false);
+});
+
+test("extended Markdown endpoint rejects session without view_report with 403", async () => {
+  let reportCalled = false;
+  const response = await handleExtendedReportRequest(reportRequest(), {
+    async getSession() {
+      return createLocalControlledSession(["download_markdown"]);
+    },
+    async getReport() {
+      reportCalled = true;
+      return { ok: true, data: { markdown: "# No deberia correr" } };
+    }
+  });
+  const body = await response.json();
+
+  assert.equal(response.status, 403);
+  assert.equal(body.error.code, "FORBIDDEN");
+  assert.equal(JSON.stringify(body).includes("stack"), false);
+  assert.equal(JSON.stringify(body).includes("X-API-Key"), false);
+  assert.equal(reportCalled, false);
+});
+
+test("extended JSON endpoint allows session with view_report", async () => {
+  const response = await handleExtendedReportRequest(reportRequest(), {
+    async getSession() {
+      return createLocalControlledSession(["view_report"]);
+    },
+    async getReport(period) {
+      assert.deepEqual(period, {
+        currentYear: 2026,
+        previousYear: 2025,
+        monthLimit: 6
+      });
+      return { ok: true, data: { ok: true } };
+    }
+  });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { ok: true });
+});
+
+test("extended Markdown endpoint allows session with view_report", async () => {
+  const response = await handleExtendedReportRequest(reportRequest(), {
+    async getSession() {
+      return createLocalControlledSession(["view_report"]);
+    },
+    async getReport(period) {
+      assert.deepEqual(period, {
+        currentYear: 2026,
+        previousYear: 2025,
+        monthLimit: 6
+      });
+      return { ok: true, data: { markdown: "# Reporte" } };
+    }
+  });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { markdown: "# Reporte" });
+});
+
 test("buildReportSummary keeps a safe fallback for simple JSON", () => {
   const summary = buildReportSummary({
     title: "Reporte",
@@ -695,6 +816,18 @@ function textResponse(body, status) {
     status,
     async text() {
       return body;
+    }
+  };
+}
+
+function reportRequest() {
+  return {
+    nextUrl: {
+      searchParams: new URLSearchParams({
+        current_year: "2026",
+        previous_year: "2025",
+        month_limit: "6"
+      })
     }
   };
 }
