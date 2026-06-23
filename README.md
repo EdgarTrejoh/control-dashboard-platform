@@ -56,18 +56,52 @@ npm run build
 npm run test
 ```
 
+## Runtime Node
+
+El runtime objetivo del proyecto es Node 22 LTS.
+
+El repositorio declara:
+
+```text
+.nvmrc -> 22
+package.json -> "node": ">=22 <23"
+```
+
 ## Nota tecnica sobre Next/SWC en Windows
 
-Los scripts `dev` y `build` usan temporalmente `scripts/with-next-wasm.mjs`.
+Los scripts `dev` y `build` usan el flujo estandar de Next.js:
 
-Este wrapper existe porque en el entorno local Windows con Node 24 se detecto un fallo al cargar el binario nativo SWC de Next.js 15.
+```text
+next dev
+next build
+```
 
-La solucion objetivo es normalizar el proyecto a Node 22 LTS y eliminar el wrapper si `next dev` y `next build` funcionan con SWC nativo.
+Durante Fase 1 existio un workaround temporal para SWC/WASM en Windows, pero ya fue eliminado. El build estandar fue validado correctamente.
+
+Node 22 LTS ya quedo fijado como runtime del proyecto mediante `.nvmrc` y `engines.node`.
 
 Ver:
 
 ```text
 docs/nota_tecnica_next_swc_windows.md
+```
+
+## Audit de dependencias
+
+`npm audit` puede reportar un hallazgo moderado de `postcss <8.5.10` como dependencia transitiva de Next.js.
+
+No ejecutar:
+
+```text
+npm audit fix --force
+```
+
+porque npm propone degradar Next.js a una version incompatible.
+
+Ver:
+
+```text
+docs/nota_tecnica_audit_dependencias.md
 ```
 
 ## Descargas en Fase 1

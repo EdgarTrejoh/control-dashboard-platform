@@ -50,10 +50,22 @@
 ## Validacion tecnica Next/SWC
 
 - [ ] Se reviso `docs/nota_tecnica_next_swc_windows.md`.
-- [ ] Se confirma si el entorno local usa Node 22 LTS o Node 24.
-- [ ] Si se usa Node 24 en Windows, se entiende que `scripts/with-next-wasm.mjs` es un workaround temporal.
-- [ ] Antes de CI/CD formal, se debe validar `next build` estandar con Node 22 LTS.
-- [ ] Si Node 22 LTS resuelve SWC nativo, se debe eliminar `scripts/with-next-wasm.mjs`, `@next/swc-wasm-nodejs` y `NEXT_TEST_WASM_DIR`.
+- [ ] `package.json` usa scripts estandar `next dev` y `next build`.
+- [ ] No existe `scripts/with-next-wasm.mjs`.
+- [ ] No esta instalado `@next/swc-wasm-nodejs`.
+- [ ] No se usa `NEXT_TEST_WASM_DIR` en codigo ejecutable.
+- [ ] `npm run build` funciona con el flujo estandar de Next.js.
+- [ ] `.nvmrc` define Node 22.
+- [ ] `package.json` declara `engines.node` como `>=22 <23`.
+- [ ] Antes de CI/CD formal, el pipeline debe usar Node 22.
+
+## Validacion audit de dependencias
+
+- [ ] Se reviso `docs/nota_tecnica_audit_dependencias.md`.
+- [ ] `npm audit` reporta el hallazgo transitorio de `postcss` transitivo via Next.js.
+- [ ] No se ejecuta `npm audit fix --force` porque propone degradar Next.js a una version incompatible.
+- [ ] El hallazgo no bloquea Fase 1 local/controlada.
+- [ ] El hallazgo debe revisarse antes de despliegue publico o CI/CD con politica estricta de audit.
 
 ## Validacion manual de Network tab
 
