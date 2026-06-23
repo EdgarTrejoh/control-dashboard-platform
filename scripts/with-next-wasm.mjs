@@ -2,6 +2,18 @@ import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+/**
+ * WORKAROUND TEMPORAL - ver docs/nota_tecnica_next_swc_windows.md
+ *
+ * Razon: en Windows con Node 24, Next.js 15 fallo cargando el binario
+ * nativo @next/swc-win32-x64-msvc. Este wrapper fuerza el uso de
+ * @next/swc-wasm-nodejs mediante NEXT_TEST_WASM_DIR.
+ *
+ * NEXT_TEST_WASM_DIR es una variable interna/de pruebas de Next.js, no una
+ * API publica estable. Eliminar este wrapper cuando se valide el build
+ * estandar con Node 22 LTS.
+ */
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const projectRoot = join(__dirname, "..");

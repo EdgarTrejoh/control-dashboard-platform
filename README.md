@@ -56,6 +56,28 @@ npm run build
 npm run test
 ```
 
+## Nota tecnica sobre Next/SWC en Windows
+
+Los scripts `dev` y `build` usan temporalmente `scripts/with-next-wasm.mjs`.
+
+Este wrapper existe porque en el entorno local Windows con Node 24 se detecto un fallo al cargar el binario nativo SWC de Next.js 15.
+
+La solucion objetivo es normalizar el proyecto a Node 22 LTS y eliminar el wrapper si `next dev` y `next build` funcionan con SWC nativo.
+
+Ver:
+
+```text
+docs/nota_tecnica_next_swc_windows.md
+```
+
+## Descargas en Fase 1
+
+Las descargas Markdown/JSON estan permitidas solo en entorno local/controlado durante Fase 1.
+
+No se deben exponer publicamente sin autenticacion y capabilities/permisos. Antes de cualquier despliegue publico debe existir un gate de autorizacion server-side para descargas.
+
+Esta restriccion no bloquea Fase 1 local, pero si bloquea una exposicion publica futura.
+
 ## Seguridad
 
 El navegador solo llama rutas internas:

@@ -47,3 +47,24 @@
 - [ ] No hay cambios al backend.
 - [ ] INFONAVIT está aislado en `src/modules/infonavit`.
 - [ ] La plataforma común vive fuera del módulo INFONAVIT.
+## Validacion tecnica Next/SWC
+
+- [ ] Se reviso `docs/nota_tecnica_next_swc_windows.md`.
+- [ ] Se confirma si el entorno local usa Node 22 LTS o Node 24.
+- [ ] Si se usa Node 24 en Windows, se entiende que `scripts/with-next-wasm.mjs` es un workaround temporal.
+- [ ] Antes de CI/CD formal, se debe validar `next build` estandar con Node 22 LTS.
+- [ ] Si Node 22 LTS resuelve SWC nativo, se debe eliminar `scripts/with-next-wasm.mjs`, `@next/swc-wasm-nodejs` y `NEXT_TEST_WASM_DIR`.
+
+## Validacion manual de Network tab
+
+- [ ] Browser llama solo rutas internas `/api/infonavit/*`.
+- [ ] No se observa `X-API-Key` en Request Headers del navegador.
+- [ ] El payload/query del navegador contiene solo `current_year`, `previous_year` y `month_limit`.
+- [ ] No se observan secretos en navegador.
+
+## Validacion de descargas
+
+- [ ] Las descargas Markdown/JSON se validan solo en entorno local/controlado.
+- [ ] No se habilitan descargas publicas sin auth/capabilities.
+- [ ] Antes de cualquier despliegue publico existe un gate de autorizacion server-side para descargas.
+- [ ] Se entiende que esto no bloquea Fase 1 local, pero si bloquea exposicion publica futura.
