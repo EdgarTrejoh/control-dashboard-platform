@@ -112,6 +112,12 @@ No se deben exponer publicamente sin autenticacion y capabilities/permisos. Ante
 
 Esta restriccion no bloquea Fase 1 local, pero si bloquea una exposicion publica futura.
 
+La decision arquitectonica y sus limitaciones estan documentadas en:
+
+```text
+docs/nota_tecnica_descargas_capabilities.md
+```
+
 ## Seguridad
 
 El navegador solo llama rutas internas:
