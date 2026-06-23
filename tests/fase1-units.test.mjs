@@ -1,0 +1,389 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { loadTsModule } from "./ts-module-loader.mjs";
+
+const {
+  parseReportPeriod,
+  toInfonavitSearchParams
+} = loadTsModule("src/modules/infonavit/api/period.ts");
+const { getInfonavitServerEnv } = loadTsModule("src/platform/env/server.ts");
+const { serverFetchJson, serverFetchText } = loadTsModule(
+  "src/platform/http/server-fetch.ts"
+);
+const { toHttpResponse } = loadTsModule("src/platform/errors/http-response.ts");
+const { buildReportSummary } = loadTsModule(
+  "src/modules/infonavit/adapters/report-summary.ts"
+);
+const { buildTextDownload, buildJsonDownload } = loadTsModule(
+  "src/platform/download/files.ts"
+);
+
+test("parseReportPeriod accepts a valid period", () => {
+  const result = parseReportPeriod(
+    new URLSearchParams({
+      current_year: "2026",
+      previous_year: "2025",
+      month_limit: "6"
+    })
+  );
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.data, {
+    currentYear: 2026,
+    previousYear: 2025,
+    monthLimit: 6
+  });
+});
+
+test("parseReportPeriod rejects invalid current year", () => {
+  const result = parseReportPeriod(
+    new URLSearchParams({
+      current_year: "1999",
+      previous_year: "2025",
+      month_limit: "6"
+    })
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, "VALIDATION_ERROR");
+  assert.equal(result.error.status, 422);
+});
+
+test("parseReportPeriod rejects invalid previous year", () => {
+  const result = parseReportPeriod(
+    new URLSearchParams({
+      current_year: "2026",
+      previous_year: "not-a-year",
+      month_limit: "6"
+    })
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, "VALIDATION_ERROR");
+});
+
+test("parseReportPeriod rejects previous year greater than or equal to current year", () => {
+  const result = parseReportPeriod(
+    new URLSearchParams({
+      current_year: "2026",
+      previous_year: "2026",
+      month_limit: "6"
+    })
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, "VALIDATION_ERROR");
+});
+
+test("parseReportPeriod rejects month lower than 1", () => {
+  const result = parseReportPeriod(
+    new URLSearchParams({
+      current_year: "2026",
+      previous_year: "2025",
+      month_limit: "0"
+    })
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, "VALIDATION_ERROR");
+});
+
+test("parseReportPeriod rejects month greater than 12", () => {
+  const result = parseReportPeriod(
+    new URLSearchParams({
+      current_year: "2026",
+      previous_year: "2025",
+      month_limit: "13"
+    })
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, "VALIDATION_ERROR");
+});
+
+test("parseReportPeriod treats empty month as null", () => {
+  const result = parseReportPeriod(
+    new URLSearchParams({
+      current_year: "2026",
+      previous_year: "2025",
+      month_limit: ""
+    })
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.data.monthLimit, null);
+});
+
+test("toInfonavitSearchParams maps period to backend query params", () => {
+  const params = toInfonavitSearchParams({
+    currentYear: 2026,
+    previousYear: 2025,
+    monthLimit: 9
+  });
+
+  assert.equal(params.get("current_year"), "2026");
+  assert.equal(params.get("previous_year"), "2025");
+  assert.equal(params.get("month_limit"), "9");
+});
+
+test("toInfonavitSearchParams omits null month limit", () => {
+  const params = toInfonavitSearchParams({
+    currentYear: 2026,
+    previousYear: 2025,
+    monthLimit: null
+  });
+
+  assert.equal(params.has("month_limit"), false);
+});
+
+test("getInfonavitServerEnv reports missing base URL", () => {
+  const restore = withEnv({
+    INFONAVIT_API_BASE_URL: undefined,
+    INFONAVIT_API_KEY: "secret"
+  });
+
+  try {
+    const result = getInfonavitServerEnv();
+    assert.equal(result.ok, false);
+    assert.equal(result.error.code, "CONFIG_ERROR");
+    assert.match(result.error.message, /INFONAVIT_API_BASE_URL/);
+  } finally {
+    restore();
+  }
+});
+
+test("getInfonavitServerEnv reports missing API key", () => {
+  const restore = withEnv({
+    INFONAVIT_API_BASE_URL: "https://example.test",
+    INFONAVIT_API_KEY: undefined
+  });
+
+  try {
+    const result = getInfonavitServerEnv();
+    assert.equal(result.ok, false);
+    assert.equal(result.error.code, "CONFIG_ERROR");
+    assert.match(result.error.message, /INFONAVIT_API_KEY/);
+  } finally {
+    restore();
+  }
+});
+
+test("getInfonavitServerEnv trims trailing slash from base URL", () => {
+  const restore = withEnv({
+    INFONAVIT_API_BASE_URL: "https://example.test/",
+    INFONAVIT_API_KEY: "secret"
+  });
+
+  try {
+    const result = getInfonavitServerEnv();
+    assert.equal(result.ok, true);
+    assert.equal(result.data.baseUrl, "https://example.test");
+    assert.equal(result.data.apiKey, "secret");
+  } finally {
+    restore();
+  }
+});
+
+test("serverFetchJson maps upstream 401", async () => {
+  const restore = mockFetch(async () => jsonResponse({ error: "nope" }, 401));
+
+  try {
+    const result = await serverFetchJson("https://example.test");
+    assert.equal(result.ok, false);
+    assert.equal(result.error.code, "AUTH_ERROR");
+    assert.equal(result.error.status, 401);
+  } finally {
+    restore();
+  }
+});
+
+test("serverFetchJson maps upstream 422", async () => {
+  const restore = mockFetch(async () => jsonResponse({ error: "bad params" }, 422));
+
+  try {
+    const result = await serverFetchJson("https://example.test");
+    assert.equal(result.ok, false);
+    assert.equal(result.error.status, 422);
+    assert.match(result.error.message, /par.metros|parámetros/i);
+  } finally {
+    restore();
+  }
+});
+
+test("serverFetchJson maps timeout", async () => {
+  const restore = mockFetch(
+    (_url, options) =>
+      new Promise((_resolve, reject) => {
+        options.signal.addEventListener("abort", () => {
+          reject(new DOMException("Aborted", "AbortError"));
+        });
+      })
+  );
+
+  try {
+    const result = await serverFetchJson("https://example.test", {
+      timeoutMs: 1
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.error.code, "TIMEOUT_ERROR");
+    assert.equal(result.error.status, 504);
+  } finally {
+    restore();
+  }
+});
+
+test("serverFetchJson maps null JSON as empty data", async () => {
+  const restore = mockFetch(async () => jsonResponse(null, 200));
+
+  try {
+    const result = await serverFetchJson("https://example.test");
+    assert.equal(result.ok, false);
+    assert.equal(result.error.code, "EMPTY_DATA");
+    assert.equal(result.error.status, 502);
+  } finally {
+    restore();
+  }
+});
+
+test("serverFetchText maps empty markdown as empty data", async () => {
+  const restore = mockFetch(async () => textResponse("   ", 200));
+
+  try {
+    const result = await serverFetchText("https://example.test");
+    assert.equal(result.ok, false);
+    assert.equal(result.error.code, "EMPTY_DATA");
+    assert.equal(result.error.status, 502);
+  } finally {
+    restore();
+  }
+});
+
+test("serverFetchJson returns parsed JSON on success", async () => {
+  const restore = mockFetch(async () => jsonResponse({ ok: true }, 200));
+
+  try {
+    const result = await serverFetchJson("https://example.test");
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.data, { ok: true });
+  } finally {
+    restore();
+  }
+});
+
+test("serverFetchText returns markdown on success", async () => {
+  const restore = mockFetch(async () => textResponse("# Reporte", 200));
+
+  try {
+    const result = await serverFetchText("https://example.test");
+    assert.equal(result.ok, true);
+    assert.equal(result.data, "# Reporte");
+  } finally {
+    restore();
+  }
+});
+
+test("toHttpResponse serializes safe app errors", async () => {
+  const response = toHttpResponse({
+    code: "VALIDATION_ERROR",
+    message: "Parametros invalidos.",
+    status: 422
+  });
+
+  assert.equal(response.status, 422);
+  assert.deepEqual(await response.json(), {
+    error: {
+      code: "VALIDATION_ERROR",
+      message: "Parametros invalidos."
+    }
+  });
+});
+
+test("buildReportSummary summarizes primitive and structured values", () => {
+  const summary = buildReportSummary({
+    title: "Reporte",
+    amount: 12,
+    active: true,
+    rows: [1, 2, 3],
+    metadata: { source: "api", year: 2026 },
+    missing: null
+  });
+
+  assert.deepEqual(summary, [
+    { label: "Title", value: "Reporte" },
+    { label: "Amount", value: "12" },
+    { label: "Active", value: "true" },
+    { label: "Rows", value: "3 elementos" },
+    { label: "Metadata", value: "2 campos" },
+    { label: "Missing", value: "Sin dato" }
+  ]);
+});
+
+test("buildTextDownload creates markdown data URI with filename and MIME", () => {
+  const download = buildTextDownload("report.md", "# Hola", "text/markdown");
+
+  assert.equal(download.filename, "report.md");
+  assert.equal(download.href, "data:text/markdown;charset=utf-8,%23%20Hola");
+});
+
+test("buildJsonDownload creates JSON data URI with filename and MIME", () => {
+  const download = buildJsonDownload("report.json", { ok: true });
+
+  assert.equal(download.filename, "report.json");
+  assert.match(download.href, /^data:application\/json;charset=utf-8,/);
+  assert.deepEqual(JSON.parse(decodeURIComponent(download.href.split(",")[1])), {
+    ok: true
+  });
+});
+
+function withEnv(values) {
+  const previous = {};
+
+  for (const [key, value] of Object.entries(values)) {
+    previous[key] = process.env[key];
+
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
+  }
+
+  return () => {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  };
+}
+
+function mockFetch(implementation) {
+  const previous = globalThis.fetch;
+  globalThis.fetch = implementation;
+
+  return () => {
+    globalThis.fetch = previous;
+  };
+}
+
+function jsonResponse(body, status) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    async json() {
+      return body;
+    }
+  };
+}
+
+function textResponse(body, status) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    async text() {
+      return body;
+    }
+  };
+}
