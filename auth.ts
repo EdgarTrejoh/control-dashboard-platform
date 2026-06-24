@@ -5,6 +5,7 @@ import {
   getGoogleEmailVerified,
   validateAlphaProfileAccess
 } from "@/platform/auth/alpha-access";
+import { hashEmail, logAlphaEvent } from "@/platform/observability/alpha-events";
 
 export const {
   handlers: { GET, POST },
@@ -19,13 +20,25 @@ export const {
   providers: [Google],
   callbacks: {
     async signIn({ profile, user }) {
+      const email = profile?.email ?? user.email;
       const access = validateAlphaProfileAccess(
         {
-          email: profile?.email ?? user.email,
+          email,
           emailVerified: getGoogleEmailVerified(profile)
         },
         getAlphaAccessConfig(process.env)
       );
+
+      const userEmailHash = email ? hashEmail(email) : undefined;
+
+      logAlphaEvent({
+        event_type: access.ok ? "login_success" : "login_denied_not_invited",
+        user_email_hash: userEmailHash,
+        module: "platform",
+        action: "google_sign_in",
+        result: access.ok ? "success" : "denied",
+        error_code: access.ok ? undefined : "ALPHA_ACCESS_DENIED"
+      });
 
       return access.ok;
     }

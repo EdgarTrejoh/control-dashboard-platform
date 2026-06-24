@@ -17,6 +17,11 @@ import type {
 
 type LoadState = "idle" | "loading" | "ok" | "error";
 type Tab = "summary" | "markdown" | "json";
+type AlphaClientEventType =
+  | "report_period_changed"
+  | "markdown_copied"
+  | "markdown_downloaded"
+  | "json_downloaded";
 
 const initialPeriod: ReportPeriod = {
   currentYear: new Date().getFullYear(),
@@ -140,10 +145,16 @@ export function InfonavitDashboard() {
 
     try {
       await navigator.clipboard.writeText(report.markdown);
+      void logAlphaActivationEvent("markdown_copied", period);
       setCopyMessage("Markdown copiado.");
     } catch {
       setCopyMessage("No fue posible copiar Markdown desde el navegador.");
     }
+  }
+
+  function handlePeriodChange(nextPeriod: ReportPeriod) {
+    setPeriod(nextPeriod);
+    void logAlphaActivationEvent("report_period_changed", nextPeriod);
   }
 
   return (
@@ -177,7 +188,7 @@ export function InfonavitDashboard() {
         <PeriodSelector
           isLoading={reportState === "loading"}
           period={period}
-          onChange={setPeriod}
+          onChange={handlePeriodChange}
           onSubmit={loadReport}
         />
       </section>
@@ -222,8 +233,18 @@ export function InfonavitDashboard() {
             >
               Copiar Markdown
             </Button>
-            <DownloadLink download={markdownDownload} label="Descargar MD" />
-            <DownloadLink download={jsonDownload} label="Descargar JSON" />
+            <DownloadLink
+              download={markdownDownload}
+              eventType="markdown_downloaded"
+              label="Descargar MD"
+              period={period}
+            />
+            <DownloadLink
+              download={jsonDownload}
+              eventType="json_downloaded"
+              label="Descargar JSON"
+              period={period}
+            />
           </div>
         </div>
 
@@ -273,10 +294,14 @@ async function fetchClient<T = unknown>(
 
 function DownloadLink({
   download,
-  label
+  eventType,
+  label,
+  period
 }: {
   download: { filename: string; href: string } | null;
+  eventType: AlphaClientEventType;
   label: string;
+  period: ReportPeriod;
 }) {
   if (!download) {
     return (
@@ -291,6 +316,9 @@ function DownloadLink({
       className="inline-flex min-h-10 items-center justify-center rounded-md border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:bg-slate-50"
       download={download.filename}
       href={download.href}
+      onClick={() => {
+        void logAlphaActivationEvent(eventType, period);
+      }}
     >
       {label}
     </a>
@@ -300,4 +328,27 @@ function DownloadLink({
 function buildFilename(extension: "json" | "md", period: ReportPeriod) {
   const month = period.monthLimit === null ? "all" : `m${period.monthLimit}`;
   return `infonavit_extended_report_${period.currentYear}_vs_${period.previousYear}_${month}.${extension}`;
+}
+
+async function logAlphaActivationEvent(
+  eventType: AlphaClientEventType,
+  period: ReportPeriod
+) {
+  try {
+    await fetch("/api/alpha/events", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      cache: "no-store",
+      body: JSON.stringify({
+        event_type: eventType,
+        currentYear: period.currentYear,
+        previousYear: period.previousYear,
+        monthLimit: period.monthLimit
+      })
+    });
+  } catch {
+    // Observability must never block the user flow.
+  }
 }

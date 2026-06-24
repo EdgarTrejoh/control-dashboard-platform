@@ -161,6 +161,12 @@ El gate server-side `view_report` de Closed Alpha 2 esta documentado en:
 docs/closed_alpha_2_view_report_gate.md
 ```
 
+La politica e implementacion de observabilidad minima de Closed Alpha 3 esta documentada en:
+
+```text
+docs/closed_alpha_3_observabilidad_minima.md
+```
+
 El modelo conceptual de datos para identidad, usuarios, auditoria, uso, preferencias y secretos esta documentado en:
 
 ```text

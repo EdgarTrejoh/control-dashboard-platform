@@ -36,6 +36,14 @@ const {
 const { handleExtendedReportRequest } = loadTsModule(
   "src/modules/infonavit/api/extended-report-route-handlers.ts"
 );
+const {
+  buildAlphaLogRecord,
+  hashEmail,
+  sanitizeAlphaLogRecord
+} = loadTsModule("src/platform/observability/alpha-events.ts");
+const { handleAlphaClientEvent } = loadTsModule(
+  "src/platform/observability/alpha-client-event-handler.ts"
+);
 
 test("parseReportPeriod accepts a valid period", () => {
   const result = parseReportPeriod(
@@ -525,6 +533,7 @@ test("normalizeEmail lowercases and trims email values", () => {
 
 test("extended JSON endpoint rejects missing session with 401", async () => {
   let reportCalled = false;
+  const events = [];
   const response = await handleExtendedReportRequest(reportRequest(), {
     async getSession() {
       return null;
@@ -532,6 +541,12 @@ test("extended JSON endpoint rejects missing session with 401", async () => {
     async getReport() {
       reportCalled = true;
       return { ok: true, data: { shouldNotRun: true } };
+    },
+    route: "/api/infonavit/extended/json",
+    action: "view_extended_json_report",
+    logEvent(event) {
+      events.push(event);
+      return event;
     }
   });
   const body = await response.json();
@@ -541,10 +556,14 @@ test("extended JSON endpoint rejects missing session with 401", async () => {
   assert.equal(JSON.stringify(body).includes("stack"), false);
   assert.equal(JSON.stringify(body).includes("X-API-Key"), false);
   assert.equal(reportCalled, false);
+  assert.equal(events.length, 1);
+  assert.equal(events[0].event_type, "capability_denied");
+  assert.equal(events[0].error_code, "AUTH_REQUIRED");
 });
 
 test("extended Markdown endpoint rejects missing session with 401", async () => {
   let reportCalled = false;
+  const events = [];
   const response = await handleExtendedReportRequest(reportRequest(), {
     async getSession() {
       return null;
@@ -552,6 +571,12 @@ test("extended Markdown endpoint rejects missing session with 401", async () => 
     async getReport() {
       reportCalled = true;
       return { ok: true, data: { markdown: "# No deberia correr" } };
+    },
+    route: "/api/infonavit/extended/markdown",
+    action: "view_extended_markdown_report",
+    logEvent(event) {
+      events.push(event);
+      return event;
     }
   });
   const body = await response.json();
@@ -561,10 +586,14 @@ test("extended Markdown endpoint rejects missing session with 401", async () => 
   assert.equal(JSON.stringify(body).includes("stack"), false);
   assert.equal(JSON.stringify(body).includes("X-API-Key"), false);
   assert.equal(reportCalled, false);
+  assert.equal(events.length, 1);
+  assert.equal(events[0].event_type, "capability_denied");
+  assert.equal(events[0].error_code, "AUTH_REQUIRED");
 });
 
 test("extended JSON endpoint rejects session without view_report with 403", async () => {
   let reportCalled = false;
+  const events = [];
   const response = await handleExtendedReportRequest(reportRequest(), {
     async getSession() {
       return createLocalControlledSession(["download_json"]);
@@ -572,6 +601,12 @@ test("extended JSON endpoint rejects session without view_report with 403", asyn
     async getReport() {
       reportCalled = true;
       return { ok: true, data: { shouldNotRun: true } };
+    },
+    route: "/api/infonavit/extended/json",
+    action: "view_extended_json_report",
+    logEvent(event) {
+      events.push(event);
+      return event;
     }
   });
   const body = await response.json();
@@ -581,10 +616,14 @@ test("extended JSON endpoint rejects session without view_report with 403", asyn
   assert.equal(JSON.stringify(body).includes("stack"), false);
   assert.equal(JSON.stringify(body).includes("X-API-Key"), false);
   assert.equal(reportCalled, false);
+  assert.equal(events.length, 1);
+  assert.equal(events[0].event_type, "capability_denied");
+  assert.equal(events[0].error_code, "FORBIDDEN");
 });
 
 test("extended Markdown endpoint rejects session without view_report with 403", async () => {
   let reportCalled = false;
+  const events = [];
   const response = await handleExtendedReportRequest(reportRequest(), {
     async getSession() {
       return createLocalControlledSession(["download_markdown"]);
@@ -592,6 +631,12 @@ test("extended Markdown endpoint rejects session without view_report with 403", 
     async getReport() {
       reportCalled = true;
       return { ok: true, data: { markdown: "# No deberia correr" } };
+    },
+    route: "/api/infonavit/extended/markdown",
+    action: "view_extended_markdown_report",
+    logEvent(event) {
+      events.push(event);
+      return event;
     }
   });
   const body = await response.json();
@@ -601,9 +646,13 @@ test("extended Markdown endpoint rejects session without view_report with 403", 
   assert.equal(JSON.stringify(body).includes("stack"), false);
   assert.equal(JSON.stringify(body).includes("X-API-Key"), false);
   assert.equal(reportCalled, false);
+  assert.equal(events.length, 1);
+  assert.equal(events[0].event_type, "capability_denied");
+  assert.equal(events[0].error_code, "FORBIDDEN");
 });
 
 test("extended JSON endpoint allows session with view_report", async () => {
+  const events = [];
   const response = await handleExtendedReportRequest(reportRequest(), {
     async getSession() {
       return createLocalControlledSession(["view_report"]);
@@ -615,14 +664,33 @@ test("extended JSON endpoint allows session with view_report", async () => {
         monthLimit: 6
       });
       return { ok: true, data: { ok: true } };
+    },
+    route: "/api/infonavit/extended/json",
+    action: "view_extended_json_report",
+    logEvent(event) {
+      events.push(event);
+      return event;
     }
   });
 
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { ok: true });
+  assert.equal(events.length, 1);
+  assert.deepEqual(events[0], {
+    event_type: "report_viewed",
+    module: "infonavit",
+    route: "/api/infonavit/extended/json",
+    action: "view_extended_json_report",
+    result: "success",
+    capability: "view_report",
+    current_year: 2026,
+    previous_year: 2025,
+    month_limit: 6
+  });
 });
 
 test("extended Markdown endpoint allows session with view_report", async () => {
+  const events = [];
   const response = await handleExtendedReportRequest(reportRequest(), {
     async getSession() {
       return createLocalControlledSession(["view_report"]);
@@ -634,11 +702,206 @@ test("extended Markdown endpoint allows session with view_report", async () => {
         monthLimit: 6
       });
       return { ok: true, data: { markdown: "# Reporte" } };
+    },
+    route: "/api/infonavit/extended/markdown",
+    action: "view_extended_markdown_report",
+    logEvent(event) {
+      events.push(event);
+      return event;
     }
   });
 
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { markdown: "# Reporte" });
+  assert.equal(events.length, 1);
+  assert.equal(events[0].event_type, "report_viewed");
+  assert.equal(events[0].route, "/api/infonavit/extended/markdown");
+});
+
+test("extended report handler logs controlled API errors without payloads", async () => {
+  const events = [];
+  const response = await handleExtendedReportRequest(reportRequest(), {
+    async getSession() {
+      return createLocalControlledSession(["view_report"]);
+    },
+    async getReport() {
+      return {
+        ok: false,
+        error: {
+          code: "UPSTREAM_ERROR",
+          message: "Error controlado.",
+          status: 502
+        }
+      };
+    },
+    route: "/api/infonavit/extended/json",
+    action: "view_extended_json_report",
+    logEvent(event) {
+      events.push(event);
+      return event;
+    }
+  });
+  const body = await response.json();
+
+  assert.equal(response.status, 502);
+  assert.equal(body.error.code, "UPSTREAM_ERROR");
+  assert.equal(events.length, 1);
+  assert.deepEqual(events[0], {
+    event_type: "api_error",
+    module: "infonavit",
+    route: "/api/infonavit/extended/json",
+    action: "view_extended_json_report",
+    result: "error",
+    error_code: "UPSTREAM_ERROR",
+    current_year: 2026,
+    previous_year: 2025,
+    month_limit: 6
+  });
+  assert.equal(JSON.stringify(events[0]).includes("payload"), false);
+  assert.equal(JSON.stringify(events[0]).includes("X-API-Key"), false);
+});
+
+test("alpha client event endpoint rejects missing session", async () => {
+  const response = await handleAlphaClientEvent(
+    {
+      event_type: "markdown_copied",
+      currentYear: 2026,
+      previousYear: 2025,
+      monthLimit: 6
+    },
+    {
+      async getSession() {
+        return null;
+      }
+    }
+  );
+  const body = await response.json();
+
+  assert.equal(response.status, 401);
+  assert.equal(body.error.code, "AUTH_REQUIRED");
+});
+
+test("alpha client event endpoint logs activation events with email hash only", async () => {
+  const events = [];
+  const response = await handleAlphaClientEvent(
+    {
+      event_type: "markdown_copied",
+      currentYear: 2026,
+      previousYear: 2025,
+      monthLimit: 6,
+      payload: {
+        report: "complete report must not be logged"
+      },
+      email: "plain@example.com"
+    },
+    {
+      async getSession() {
+        return {
+          user: {
+            userId: "alpha:tester@example.com",
+            email: "tester@example.com"
+          },
+          capabilities: ["view_report"],
+          provider: "external"
+        };
+      },
+      logEvent(event) {
+        events.push(event);
+        return event;
+      }
+    }
+  );
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { ok: true });
+  assert.equal(events.length, 1);
+  assert.deepEqual(events[0], {
+    event_type: "markdown_copied",
+    user_email_hash: hashEmail("tester@example.com"),
+    module: "infonavit",
+    route: "/api/alpha/events",
+    action: "markdown_copied",
+    result: "success",
+    current_year: 2026,
+    previous_year: 2025,
+    month_limit: 6
+  });
+  assert.equal(JSON.stringify(events[0]).includes("plain@example.com"), false);
+  assert.equal(JSON.stringify(events[0]).includes("complete report"), false);
+});
+
+test("alpha client event endpoint rejects non-client event types", async () => {
+  const response = await handleAlphaClientEvent(
+    {
+      event_type: "login_success"
+    },
+    {
+      async getSession() {
+        return createLocalControlledSession(["view_report"]);
+      }
+    }
+  );
+  const body = await response.json();
+
+  assert.equal(response.status, 422);
+  assert.equal(body.error.code, "VALIDATION_ERROR");
+});
+
+test("alpha logger hashes email without storing plaintext email", () => {
+  const hash = hashEmail(" Tester@Example.com ");
+
+  assert.equal(hash.length, 64);
+  assert.equal(hash, hashEmail("tester@example.com"));
+  assert.equal(hash.includes("tester"), false);
+  assert.equal(hash.includes("example.com"), false);
+});
+
+test("alpha logger builds records with only allowed metadata", () => {
+  const record = buildAlphaLogRecord(
+    {
+      event_type: "report_viewed",
+      user_email_hash: hashEmail("tester@example.com"),
+      module: "infonavit",
+      route: "/api/infonavit/extended/json",
+      action: "view_extended_json_report",
+      result: "success",
+      current_year: 2026,
+      previous_year: 2025,
+      month_limit: 6
+    },
+    new Date("2026-06-23T12:00:00.000Z")
+  );
+
+  assert.equal(record.timestamp, "2026-06-23T12:00:00.000Z");
+  assert.equal(record.event_type, "report_viewed");
+  assert.equal(record.current_year, 2026);
+  assert.equal(typeof record.correlation_id, "string");
+  assert.equal(JSON.stringify(record).includes("payload"), false);
+  assert.equal(JSON.stringify(record).includes("AUTH_GOOGLE_SECRET"), false);
+});
+
+test("alpha logger sanitizes prohibited and unknown fields", () => {
+  const record = sanitizeAlphaLogRecord({
+    timestamp: "2026-06-23T12:00:00.000Z",
+    event_type: "capability_denied",
+    route: "/api/infonavit/extended/json",
+    result: "denied",
+    correlation_id: "test-correlation-id",
+    stack: "secret stack",
+    ip: "127.0.0.1",
+    user_agent: "full browser fingerprint",
+    payload: { report: "complete" },
+    token: "oauth-token",
+    api_key: "secret"
+  });
+
+  assert.deepEqual(record, {
+    timestamp: "2026-06-23T12:00:00.000Z",
+    event_type: "capability_denied",
+    route: "/api/infonavit/extended/json",
+    result: "denied",
+    correlation_id: "test-correlation-id"
+  });
 });
 
 test("buildReportSummary keeps a safe fallback for simple JSON", () => {
