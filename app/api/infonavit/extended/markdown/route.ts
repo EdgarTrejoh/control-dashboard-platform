@@ -8,6 +8,8 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   return handleExtendedReportRequest(request, {
     getSession: getCurrentPlatformSession,
-    getReport: getExtendedReportMarkdown
+    getReport: getExtendedReportMarkdown,
+    route: "/api/infonavit/extended/markdown",
+    action: "view_extended_markdown_report"
   });
 }
