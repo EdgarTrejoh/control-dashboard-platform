@@ -4,12 +4,25 @@ import { getCurrentPlatformSession } from "@/platform/auth/auth-session";
 
 export const dynamic = "force-dynamic";
 
-export default async function Home() {
+type HomeProps = {
+  searchParams?: Promise<{
+    reason?: string | string[];
+  }>;
+};
+
+export default async function Home({ searchParams }: HomeProps) {
   const session = await getCurrentPlatformSession();
+  const params = searchParams ? await searchParams : {};
+  const reason = Array.isArray(params.reason)
+    ? params.reason[0]
+    : params.reason;
 
   return (
     <>
-      <AlphaAuthPanel />
+      <AlphaAuthPanel
+        session={session}
+        showInactiveMessage={reason === "inactive"}
+      />
       {session ? <InfonavitDashboard /> : <AlphaLockedState />}
     </>
   );
@@ -23,9 +36,9 @@ function AlphaLockedState() {
           Acceso restringido a invitacion
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700">
-          Inicia sesion con una cuenta Google invitada para consultar reportes
-          de la closed alpha. Los endpoints de reporte se protegeran
-          server-side en Closed Alpha 2.
+          Inicia sesión con una cuenta Google invitada para consultar reportes
+          de la closed alpha. El acceso está protegido server-side mediante
+          invitación directa y permisos de consulta.
         </p>
       </section>
     </main>

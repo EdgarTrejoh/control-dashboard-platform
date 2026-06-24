@@ -5,6 +5,7 @@ import {
   getGoogleEmailVerified,
   validateAlphaProfileAccess
 } from "@/platform/auth/alpha-access";
+import { ALPHA_SESSION_MAX_AGE_SECONDS } from "@/platform/auth/inactivity-policy";
 import { hashEmail, logAlphaEvent } from "@/platform/observability/alpha-events";
 
 export const {
@@ -15,9 +16,18 @@ export const {
 } = NextAuth({
   trustHost: true,
   session: {
-    strategy: "jwt"
+    strategy: "jwt",
+    maxAge: ALPHA_SESSION_MAX_AGE_SECONDS
   },
-  providers: [Google],
+  providers: [
+    Google({
+      authorization: {
+        params: {
+          prompt: "select_account"
+        }
+      }
+    })
+  ],
   callbacks: {
     async signIn({ profile, user }) {
       const email = profile?.email ?? user.email;

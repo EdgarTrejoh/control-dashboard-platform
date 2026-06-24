@@ -44,6 +44,14 @@ const {
 const { handleAlphaClientEvent } = loadTsModule(
   "src/platform/observability/alpha-client-event-handler.ts"
 );
+const {
+  ALPHA_INACTIVITY_TIMEOUT_MS,
+  ALPHA_SESSION_MAX_AGE_SECONDS,
+  shouldSignOutForInactivity
+} = loadTsModule("src/platform/auth/inactivity-policy.ts");
+const { getAlphaAuthViewModel } = loadTsModule(
+  "src/platform/auth/alpha-auth-view-model.ts"
+);
 
 test("parseReportPeriod accepts a valid period", () => {
   const result = parseReportPeriod(
@@ -845,6 +853,54 @@ test("alpha client event endpoint rejects non-client event types", async () => {
 
   assert.equal(response.status, 422);
   assert.equal(body.error.code, "VALIDATION_ERROR");
+});
+
+test("alpha auth view model hides signed-in actions without session", () => {
+  assert.deepEqual(getAlphaAuthViewModel(null), {
+    isSignedIn: false,
+    accountLabel: null
+  });
+});
+
+test("alpha auth view model exposes minimal active account label with session", () => {
+  const session = {
+    user: {
+      userId: "alpha:tester@example.com",
+      email: "tester@example.com",
+      displayName: "Tester"
+    },
+    capabilities: ["view_report"],
+    provider: "external"
+  };
+
+  assert.deepEqual(getAlphaAuthViewModel(session), {
+    isSignedIn: true,
+    accountLabel: "tester@example.com"
+  });
+});
+
+test("alpha session policy uses a 30 minute maximum age", () => {
+  assert.equal(ALPHA_SESSION_MAX_AGE_SECONDS, 30 * 60);
+  assert.equal(ALPHA_INACTIVITY_TIMEOUT_MS, 30 * 60 * 1000);
+});
+
+test("alpha inactivity policy triggers sign out after 30 minutes", () => {
+  const lastActivityAt = 1_000;
+
+  assert.equal(
+    shouldSignOutForInactivity(
+      lastActivityAt,
+      lastActivityAt + ALPHA_INACTIVITY_TIMEOUT_MS - 1
+    ),
+    false
+  );
+  assert.equal(
+    shouldSignOutForInactivity(
+      lastActivityAt,
+      lastActivityAt + ALPHA_INACTIVITY_TIMEOUT_MS
+    ),
+    true
+  );
 });
 
 test("alpha logger hashes email without storing plaintext email", () => {

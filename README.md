@@ -167,6 +167,12 @@ La politica e implementacion de observabilidad minima de Closed Alpha 3 esta doc
 docs/closed_alpha_3_observabilidad_minima.md
 ```
 
+Los ajustes de UX/Auth previos a invitar usuarios reales estan documentados en:
+
+```text
+docs/closed_alpha_auth_ux_hardening.md
+```
+
 El modelo conceptual de datos para identidad, usuarios, auditoria, uso, preferencias y secretos esta documentado en:
 
 ```text

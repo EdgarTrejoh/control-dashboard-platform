@@ -146,6 +146,39 @@ test("next config defines minimum security headers", async () => {
   assert.equal(headers["Strict-Transport-Security"], undefined);
 });
 
+test("alpha auth copy reflects protected reports and accented sign out", async () => {
+  const panel = await readFile(
+    join(root, "src", "platform", "auth", "alpha-auth-panel.tsx"),
+    "utf8"
+  );
+  const page = await readFile(join(root, "app", "page.tsx"), "utf8");
+  const combined = `${panel}\n${page}`;
+
+  assert.equal(combined.includes("se protegeran server-side en Closed Alpha 2"), false);
+  assert.equal(combined.includes("se protegerán server-side en Closed Alpha 2"), false);
+  assert.equal(combined.includes("Cerrar sesion"), false);
+  assert.equal(combined.includes("Cerrar sesión"), true);
+  assert.equal(combined.includes("Entrar con Google"), true);
+});
+
+test("alpha Google sign-in forces account selector without exposing secrets", async () => {
+  const authConfig = await readFile(join(root, "auth.ts"), "utf8");
+
+  assert.match(authConfig, /prompt:\s*"select_account"/);
+  assert.equal(authConfig.includes("AUTH_GOOGLE_SECRET"), false);
+});
+
+test("alpha inactivity sign out does not log granular activity", async () => {
+  const source = await readFile(
+    join(root, "src", "platform", "auth", "inactivity-signout.tsx"),
+    "utf8"
+  );
+
+  assert.match(source, /signOut\(\{\s*callbackUrl:\s*"\/\?reason=inactive"/s);
+  assert.equal(source.includes("logAlphaEvent"), false);
+  assert.equal(source.includes("fetch("), false);
+});
+
 async function collectFiles(dir) {
   const entries = await readdir(dir, { withFileTypes: true });
   const files = [];
