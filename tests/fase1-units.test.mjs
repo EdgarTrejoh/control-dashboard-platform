@@ -18,6 +18,10 @@ const { buildTextDownload, buildJsonDownload } = loadTsModule(
   "src/platform/download/files.ts"
 );
 const {
+  buildInfonavitFamilyAnalytics,
+  calculateTicketAverage
+} = loadTsModule("src/modules/infonavit/adapters/analytics-series.ts");
+const {
   hasCapability,
   requireCapability
 } = loadTsModule("src/platform/permissions/capabilities.ts");
@@ -1144,6 +1148,97 @@ test("buildReportSummary handles unexpected JSON without inventing data", () => 
   ]);
 });
 
+test("calculateTicketAverage divides amount by credits safely", () => {
+  assert.equal(calculateTicketAverage(1_000_000, 10), 100_000);
+  assert.equal(calculateTicketAverage(1_000_000, 0), null);
+  assert.equal(calculateTicketAverage(Number.NaN, 10), null);
+});
+
+test("buildInfonavitFamilyAnalytics extracts families from line family analysis", () => {
+  const analytics = buildInfonavitFamilyAnalytics(sampleFamilyAnalysisReport());
+
+  assert.equal(analytics.hasLineFamilyAnalysis, true);
+  assert.equal(analytics.hasFamilies, true);
+  assert.deepEqual(
+    analytics.comparisonSeries.map((point) => point.family),
+    ["Adquisición de vivienda", "Mejoramiento"]
+  );
+});
+
+test("buildInfonavitFamilyAnalytics creates current vs previous amount dataset", () => {
+  const analytics = buildInfonavitFamilyAnalytics(sampleFamilyAnalysisReport());
+
+  assert.deepEqual(analytics.comparisonSeries, [
+    {
+      family: "Adquisición de vivienda",
+      currentAmount: 12_000_000,
+      previousAmount: 10_000_000
+    },
+    {
+      family: "Mejoramiento",
+      currentAmount: 1_500_000,
+      previousAmount: 1_000_000
+    }
+  ]);
+});
+
+test("buildInfonavitFamilyAnalytics creates current BCG dataset", () => {
+  const analytics = buildInfonavitFamilyAnalytics(sampleFamilyAnalysisReport());
+
+  assert.deepEqual(analytics.bcgSeries, [
+    {
+      family: "Adquisición de vivienda",
+      ticketAverage: 80_000,
+      credits: 150,
+      amount: 12_000_000
+    },
+    {
+      family: "Mejoramiento",
+      ticketAverage: 30_000,
+      credits: 50,
+      amount: 1_500_000
+    }
+  ]);
+});
+
+test("buildInfonavitFamilyAnalytics returns fallback if families are missing", () => {
+  const analytics = buildInfonavitFamilyAnalytics({ line_family_analysis: {} });
+
+  assert.deepEqual(analytics.comparisonSeries, []);
+  assert.deepEqual(analytics.bcgSeries, []);
+  assert.equal(analytics.hasLineFamilyAnalysis, true);
+  assert.equal(analytics.hasFamilies, false);
+  assert.match(analytics.warnings[0], /families/i);
+});
+
+test("buildInfonavitFamilyAnalytics reports incomplete family data without inventing values", () => {
+  const analytics = buildInfonavitFamilyAnalytics({
+    line_family_analysis: {
+      families: [
+        {
+          family: "Construcción de vivienda",
+          current: {
+            monto: 2_000_000,
+            creditos: null
+          },
+          previous: {}
+        }
+      ]
+    }
+  });
+
+  assert.deepEqual(analytics.comparisonSeries, []);
+  assert.deepEqual(analytics.bcgSeries, []);
+  assert.deepEqual(analytics.incompleteFamilies, ["Construcción de vivienda"]);
+  assert.match(analytics.warnings.join(" "), /datos incompletos/i);
+});
+
+test("buildInfonavitFamilyAnalytics does not invent monthly series", () => {
+  const analytics = buildInfonavitFamilyAnalytics(sampleFamilyAnalysisReport());
+
+  assert.equal("monthlySeries" in analytics, false);
+});
+
 test("buildTextDownload creates markdown data URI with filename and MIME", () => {
   const download = buildTextDownload("report.md", "# Hola", "text/markdown");
 
@@ -1222,6 +1317,41 @@ function reportRequest() {
         previous_year: "2025",
         month_limit: "6"
       })
+    }
+  };
+}
+
+function sampleFamilyAnalysisReport() {
+  return {
+    line_family_analysis: {
+      families: [
+        {
+          family: "Adquisición de vivienda",
+          current: {
+            monto: 12_000_000,
+            creditos: 150,
+            ticket_promedio: 80_000
+          },
+          previous: {
+            monto: 10_000_000,
+            creditos: 125,
+            ticket_promedio: 80_000
+          }
+        },
+        {
+          family: "Mejoramiento",
+          current: {
+            monto: "1500000",
+            creditos: "50",
+            ticket_promedio: "30000"
+          },
+          previous: {
+            monto: "1000000",
+            creditos: 40,
+            ticket_promedio: 25_000
+          }
+        }
+      ]
     }
   };
 }

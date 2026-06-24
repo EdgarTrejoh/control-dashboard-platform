@@ -5,6 +5,7 @@ import { StatusCard } from "@/components/feedback/status-card";
 import { MarkdownViewer } from "@/components/markdown/markdown-viewer";
 import { Button } from "@/components/ui/button";
 import { buildJsonDownload, buildTextDownload } from "@/platform/download/files";
+import { AnalyticsDashboard } from "@/modules/infonavit/components/analytics-dashboard";
 import { JsonViewer } from "@/modules/infonavit/components/json-viewer";
 import { PeriodSelector } from "@/modules/infonavit/components/period-selector";
 import { ReportSummary } from "@/modules/infonavit/components/report-summary";
@@ -16,7 +17,7 @@ import type {
 } from "@/modules/infonavit/types";
 
 type LoadState = "idle" | "loading" | "ok" | "error";
-type Tab = "summary" | "markdown" | "json";
+type Tab = "analytics" | "summary" | "markdown" | "json";
 type AlphaClientEventType =
   | "report_period_changed"
   | "markdown_copied"
@@ -38,7 +39,7 @@ export function InfonavitDashboard() {
   const [reportState, setReportState] = useState<LoadState>("idle");
   const [reportMessage, setReportMessage] = useState("Selecciona un periodo.");
   const [report, setReport] = useState<ReportPayload | null>(null);
-  const [tab, setTab] = useState<Tab>("summary");
+  const [tab, setTab] = useState<Tab>("analytics");
   const [copyMessage, setCopyMessage] = useState("");
 
   useEffect(() => {
@@ -134,7 +135,7 @@ export function InfonavitDashboard() {
     });
     setReportState("ok");
     setReportMessage("Reporte extendido disponible.");
-    setTab("summary");
+    setTab("analytics");
   }
 
   async function copyMarkdown() {
@@ -167,9 +168,9 @@ export function InfonavitDashboard() {
           Módulo INFONAVIT read-only
         </h1>
         <p className="max-w-3xl text-sm leading-6 text-slate-700">
-          Primera fase local/controlada para consultar el reporte extendido vía
-          server-side Next.js. IA, PDF, auth real, ETL, migraciones y Supabase
-          directo quedan fuera de esta fase.
+          Closed alpha controlada para consultar el reporte extendido vía
+          server-side Next.js. IA, PDF, ETL, migraciones y Supabase directo
+          quedan fuera de esta fase.
         </p>
       </header>
 
@@ -202,6 +203,13 @@ export function InfonavitDashboard() {
       <section className="grid gap-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex gap-2">
+            <Button
+              type="button"
+              variant={tab === "analytics" ? "primary" : "secondary"}
+              onClick={() => setTab("analytics")}
+            >
+              Análisis
+            </Button>
             <Button
               type="button"
               variant={tab === "summary" ? "primary" : "secondary"}
@@ -252,6 +260,9 @@ export function InfonavitDashboard() {
           <p className="text-sm text-slate-600">{copyMessage}</p>
         ) : null}
 
+        {tab === "analytics" ? (
+          <AnalyticsDashboard report={report?.json ?? null} />
+        ) : null}
         {tab === "summary" ? <ReportSummary report={report?.json ?? null} /> : null}
         {tab === "markdown" ? (
           <MarkdownViewer markdown={report?.markdown ?? ""} />
