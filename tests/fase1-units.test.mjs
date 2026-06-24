@@ -36,6 +36,9 @@ const {
 const { handleExtendedReportRequest } = loadTsModule(
   "src/modules/infonavit/api/extended-report-route-handlers.ts"
 );
+const { handleInfonavitDbHealthRequest } = loadTsModule(
+  "src/modules/infonavit/api/health-route-handlers.ts"
+);
 const {
   buildAlphaLogRecord,
   hashEmail,
@@ -767,6 +770,78 @@ test("extended report handler logs controlled API errors without payloads", asyn
   });
   assert.equal(JSON.stringify(events[0]).includes("payload"), false);
   assert.equal(JSON.stringify(events[0]).includes("X-API-Key"), false);
+});
+
+test("db-health endpoint rejects missing session with 401", async () => {
+  let dbHealthCalled = false;
+  const events = [];
+  const response = await handleInfonavitDbHealthRequest({
+    async getSession() {
+      return null;
+    },
+    async getDbHealth() {
+      dbHealthCalled = true;
+      return { ok: true, data: { status: "ok" } };
+    },
+    logEvent(event) {
+      events.push(event);
+      return event;
+    }
+  });
+  const body = await response.json();
+
+  assert.equal(response.status, 401);
+  assert.equal(body.error.code, "AUTH_REQUIRED");
+  assert.equal(JSON.stringify(body).includes("stack"), false);
+  assert.equal(JSON.stringify(body).includes("X-API-Key"), false);
+  assert.equal(dbHealthCalled, false);
+  assert.equal(events.length, 1);
+  assert.equal(events[0].event_type, "capability_denied");
+  assert.equal(events[0].capability, "admin_users");
+  assert.equal(events[0].error_code, "AUTH_REQUIRED");
+});
+
+test("db-health endpoint rejects session without admin_users with 403", async () => {
+  let dbHealthCalled = false;
+  const events = [];
+  const response = await handleInfonavitDbHealthRequest({
+    async getSession() {
+      return createLocalControlledSession(["view_report"]);
+    },
+    async getDbHealth() {
+      dbHealthCalled = true;
+      return { ok: true, data: { status: "ok" } };
+    },
+    logEvent(event) {
+      events.push(event);
+      return event;
+    }
+  });
+  const body = await response.json();
+
+  assert.equal(response.status, 403);
+  assert.equal(body.error.code, "FORBIDDEN");
+  assert.equal(JSON.stringify(body).includes("stack"), false);
+  assert.equal(JSON.stringify(body).includes("X-API-Key"), false);
+  assert.equal(dbHealthCalled, false);
+  assert.equal(events.length, 1);
+  assert.equal(events[0].event_type, "capability_denied");
+  assert.equal(events[0].capability, "admin_users");
+  assert.equal(events[0].error_code, "FORBIDDEN");
+});
+
+test("db-health endpoint allows session with admin_users", async () => {
+  const response = await handleInfonavitDbHealthRequest({
+    async getSession() {
+      return createLocalControlledSession(["admin_users"]);
+    },
+    async getDbHealth() {
+      return { ok: true, data: { status: "ok" } };
+    }
+  });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { status: "ok" });
 });
 
 test("alpha client event endpoint rejects missing session", async () => {

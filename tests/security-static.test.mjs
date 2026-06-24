@@ -94,6 +94,35 @@ test("browser-facing source does not send X-API-Key", async () => {
   assert.deepEqual(offenders, []);
 });
 
+test("basic health route does not reference secrets directly", async () => {
+  const source = await readFile(
+    join(root, "app", "api", "infonavit", "health", "route.ts"),
+    "utf8"
+  );
+
+  assert.equal(source.includes("INFONAVIT_API_KEY"), false);
+  assert.equal(source.includes("AUTH_GOOGLE_SECRET"), false);
+  assert.equal(source.includes("X-API-Key"), false);
+});
+
+test("db-health route is gated with server-side session and admin capability handler", async () => {
+  const route = await readFile(
+    join(root, "app", "api", "infonavit", "db-health", "route.ts"),
+    "utf8"
+  );
+  const handler = await readFile(
+    join(root, "src", "modules", "infonavit", "api", "health-route-handlers.ts"),
+    "utf8"
+  );
+
+  assert.match(route, /getCurrentPlatformSession/);
+  assert.match(route, /handleInfonavitDbHealthRequest/);
+  assert.match(handler, /requireCapability\(session,\s*"admin_users"\)/);
+  assert.equal(handler.includes("INFONAVIT_API_KEY"), false);
+  assert.equal(handler.includes("AUTH_GOOGLE_SECRET"), false);
+  assert.equal(handler.includes("X-API-Key"), false);
+});
+
 test("executable source does not add direct Supabase clients", async () => {
   const files = await collectFiles(root);
   const offenders = [];

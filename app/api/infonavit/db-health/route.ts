@@ -1,15 +1,12 @@
-import { NextResponse } from "next/server";
+import { handleInfonavitDbHealthRequest } from "@/modules/infonavit/api/health-route-handlers";
 import { getInfonavitDbHealth } from "@/modules/infonavit/api/infonavit-service";
-import { toHttpResponse } from "@/platform/errors/http-response";
+import { getCurrentPlatformSession } from "@/platform/auth/auth-session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const result = await getInfonavitDbHealth();
-
-  if (!result.ok) {
-    return toHttpResponse(result.error);
-  }
-
-  return NextResponse.json(result.data);
+  return handleInfonavitDbHealthRequest({
+    getSession: getCurrentPlatformSession,
+    getDbHealth: getInfonavitDbHealth
+  });
 }
