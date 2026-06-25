@@ -1,5 +1,6 @@
 import { ok } from "@/platform/errors/app-error";
 import {
+  analyticsSeries,
   dbHealth,
   extendedJson,
   fetchInfonavitMarkdown,
@@ -20,6 +21,10 @@ export async function getInfonavitDbHealth() {
 
 export async function getExtendedReportJson(period: ReportPeriod) {
   return extendedJson(period);
+}
+
+export async function getAnalyticsSeries(period: ReportPeriod) {
+  return analyticsSeries(period);
 }
 
 export async function getExtendedReportMarkdown(period: ReportPeriod) {

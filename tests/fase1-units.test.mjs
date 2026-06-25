@@ -18,9 +18,13 @@ const { buildTextDownload, buildJsonDownload } = loadTsModule(
   "src/platform/download/files.ts"
 );
 const {
-  buildInfonavitFamilyAnalytics,
+  buildBcgPointKey,
+  buildInfonavitAnalyticsViewModel,
   calculateTicketAverage
 } = loadTsModule("src/modules/infonavit/adapters/analytics-series.ts");
+const { fetchInfonavitJson } = loadTsModule(
+  "src/modules/infonavit/api/infonavit-client.ts"
+);
 const {
   hasCapability,
   requireCapability
@@ -1154,89 +1158,146 @@ test("calculateTicketAverage divides amount by credits safely", () => {
   assert.equal(calculateTicketAverage(Number.NaN, 10), null);
 });
 
-test("buildInfonavitFamilyAnalytics extracts families from line family analysis", () => {
-  const analytics = buildInfonavitFamilyAnalytics(sampleFamilyAnalysisReport());
-
-  assert.equal(analytics.hasLineFamilyAnalysis, true);
-  assert.equal(analytics.hasFamilies, true);
-  assert.deepEqual(
-    analytics.comparisonSeries.map((point) => point.family),
-    ["Adquisición de vivienda", "Mejoramiento"]
-  );
-});
-
-test("buildInfonavitFamilyAnalytics creates current vs previous amount dataset", () => {
-  const analytics = buildInfonavitFamilyAnalytics(sampleFamilyAnalysisReport());
-
-  assert.deepEqual(analytics.comparisonSeries, [
-    {
-      family: "Adquisición de vivienda",
-      currentAmount: 12_000_000,
-      previousAmount: 10_000_000
-    },
-    {
-      family: "Mejoramiento",
-      currentAmount: 1_500_000,
-      previousAmount: 1_000_000
-    }
-  ]);
-});
-
-test("buildInfonavitFamilyAnalytics creates current BCG dataset", () => {
-  const analytics = buildInfonavitFamilyAnalytics(sampleFamilyAnalysisReport());
-
-  assert.deepEqual(analytics.bcgSeries, [
-    {
-      family: "Adquisición de vivienda",
-      ticketAverage: 80_000,
-      credits: 150,
-      amount: 12_000_000
-    },
-    {
-      family: "Mejoramiento",
-      ticketAverage: 30_000,
-      credits: 50,
-      amount: 1_500_000
-    }
-  ]);
-});
-
-test("buildInfonavitFamilyAnalytics returns fallback if families are missing", () => {
-  const analytics = buildInfonavitFamilyAnalytics({ line_family_analysis: {} });
-
-  assert.deepEqual(analytics.comparisonSeries, []);
-  assert.deepEqual(analytics.bcgSeries, []);
-  assert.equal(analytics.hasLineFamilyAnalysis, true);
-  assert.equal(analytics.hasFamilies, false);
-  assert.match(analytics.warnings[0], /families/i);
-});
-
-test("buildInfonavitFamilyAnalytics reports incomplete family data without inventing values", () => {
-  const analytics = buildInfonavitFamilyAnalytics({
-    line_family_analysis: {
-      families: [
-        {
-          family: "Construcción de vivienda",
-          current: {
-            monto: 2_000_000,
-            creditos: null
-          },
-          previous: {}
-        }
-      ]
-    }
+test("fetchInfonavitJson calls analytics series endpoint server-side with X-API-Key", async () => {
+  const restoreEnv = withEnv({
+    INFONAVIT_API_BASE_URL: "https://backend.example.test",
+    INFONAVIT_API_KEY: "server-secret"
+  });
+  const calls = [];
+  const restoreFetch = mockFetch(async (url, options) => {
+    calls.push({ url: String(url), headers: options.headers });
+    return jsonResponse({ series: [], bcg: [] }, 200);
   });
 
-  assert.deepEqual(analytics.comparisonSeries, []);
-  assert.deepEqual(analytics.bcgSeries, []);
-  assert.deepEqual(analytics.incompleteFamilies, ["Construcción de vivienda"]);
-  assert.match(analytics.warnings.join(" "), /datos incompletos/i);
+  try {
+    const result = await fetchInfonavitJson(
+      "/mini-report/analytics/series/json",
+      {
+        currentYear: 2026,
+        previousYear: 2025,
+        monthLimit: 4
+      }
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].url, /\/mini-report\/analytics\/series\/json/);
+    assert.match(calls[0].url, /current_year=2026/);
+    assert.match(calls[0].url, /previous_year=2025/);
+    assert.match(calls[0].url, /month_limit=4/);
+    assert.deepEqual(calls[0].headers, {
+      "X-API-Key": "server-secret"
+    });
+  } finally {
+    restoreFetch();
+    restoreEnv();
+  }
 });
 
-test("buildInfonavitFamilyAnalytics does not invent monthly series", () => {
-  const analytics = buildInfonavitFamilyAnalytics(sampleFamilyAnalysisReport());
+test("buildInfonavitAnalyticsViewModel transforms series into monthly points", () => {
+  const analytics = buildInfonavitAnalyticsViewModel(sampleAnalyticsSeriesPayload());
 
-  assert.equal("monthlySeries" in analytics, false);
+  assert.equal(analytics.hasSeries, true);
+  assert.deepEqual(analytics.monthlySeries, [
+    {
+      periodKey: "2026-01",
+      label: "Ene 2026",
+      creditos: 30,
+      monto: 3_000,
+      ticketPromedio: 100,
+      montoReal: 2_700,
+      ticketReal: 90
+    },
+    {
+      periodKey: "2026-02",
+      label: "Feb 2026",
+      creditos: 5,
+      monto: 600,
+      ticketPromedio: 120,
+      montoReal: 540,
+      ticketReal: 108
+    }
+  ]);
+});
+
+test("buildInfonavitAnalyticsViewModel transforms bcg into chartable points", () => {
+  const analytics = buildInfonavitAnalyticsViewModel(sampleAnalyticsSeriesPayload());
+
+  assert.equal(analytics.hasBcg, true);
+  assert.deepEqual(analytics.bcgSeries, [
+    {
+      product: "Crédito Tradicional",
+      family: "Adquisición",
+      creditos: 100,
+      monto: 10_000,
+      ticketPromedio: 100
+    },
+    {
+      product: "Mejoravit",
+      family: "Mejoramiento",
+      creditos: 40,
+      monto: 2_000,
+      ticketPromedio: 50
+    }
+  ]);
+});
+
+test("buildBcgPointKey keeps repeated BCG product names unique", () => {
+  const points = [
+    {
+      product: "Crédito Tradicional",
+      family: "Adquisición",
+      creditos: 100,
+      monto: 10_000,
+      ticketPromedio: 100
+    },
+    {
+      product: "Crédito Tradicional",
+      family: "Cofinanciamiento",
+      creditos: 50,
+      monto: 5_000,
+      ticketPromedio: 100
+    }
+  ];
+  const keys = points.map((point, index) => buildBcgPointKey(point, index));
+
+  assert.deepEqual(keys, [
+    "Adquisición-Crédito Tradicional-0",
+    "Cofinanciamiento-Crédito Tradicional-1"
+  ]);
+  assert.equal(new Set(keys).size, keys.length);
+});
+
+test("buildInfonavitAnalyticsViewModel returns fallback if series is empty", () => {
+  const analytics = buildInfonavitAnalyticsViewModel({
+    series: [],
+    bcg: sampleAnalyticsSeriesPayload().bcg,
+    metadata: {}
+  });
+
+  assert.equal(analytics.hasSeries, false);
+  assert.deepEqual(analytics.monthlySeries, []);
+  assert.match(analytics.warnings.join(" "), /series\[\] está vacío/i);
+});
+
+test("buildInfonavitAnalyticsViewModel returns fallback if bcg is empty", () => {
+  const analytics = buildInfonavitAnalyticsViewModel({
+    series: sampleAnalyticsSeriesPayload().series,
+    bcg: [],
+    metadata: {}
+  });
+
+  assert.equal(analytics.hasBcg, false);
+  assert.deepEqual(analytics.bcgSeries, []);
+  assert.match(analytics.warnings.join(" "), /bcg\[\] está vacío/i);
+});
+
+test("buildInfonavitAnalyticsViewModel exposes metadata warnings as methodology notes", () => {
+  const analytics = buildInfonavitAnalyticsViewModel(sampleAnalyticsSeriesPayload());
+
+  assert.deepEqual(analytics.warnings, [
+    "Comparacion mensual YTD: no incluye anios completos."
+  ]);
 });
 
 test("buildTextDownload creates markdown data URI with filename and MIME", () => {
@@ -1321,37 +1382,71 @@ function reportRequest() {
   };
 }
 
-function sampleFamilyAnalysisReport() {
+function sampleAnalyticsSeriesPayload() {
   return {
-    line_family_analysis: {
-      families: [
-        {
-          family: "Adquisición de vivienda",
-          current: {
-            monto: 12_000_000,
-            creditos: 150,
-            ticket_promedio: 80_000
-          },
-          previous: {
-            monto: 10_000_000,
-            creditos: 125,
-            ticket_promedio: 80_000
-          }
-        },
-        {
-          family: "Mejoramiento",
-          current: {
-            monto: "1500000",
-            creditos: "50",
-            ticket_promedio: "30000"
-          },
-          previous: {
-            monto: "1000000",
-            creditos: 40,
-            ticket_promedio: 25_000
-          }
-        }
-      ]
+    period: {
+      current_year: 2026,
+      previous_year: 2025,
+      month_limit: 2
+    },
+    series: [
+      {
+        period: "2026-01",
+        product: "Crédito Tradicional",
+        family: "Adquisición",
+        creditos: 10,
+        monto: 1_000,
+        ticket_promedio: 100,
+        monto_real: 900,
+        ticket_real: 90
+      },
+      {
+        period: "2026-01",
+        product: "Mejoravit",
+        family: "Mejoramiento",
+        creditos: 20,
+        monto: 2_000,
+        ticket_promedio: 100,
+        monto_real: 1_800,
+        ticket_real: 90
+      },
+      {
+        year: 2026,
+        month: 2,
+        product: "Crédito Tradicional",
+        family: "Adquisición",
+        creditos: 5,
+        monto: 600,
+        ticket_promedio: 120,
+        monto_real: 540,
+        ticket_real: 108
+      }
+    ],
+    bcg: [
+      {
+        product: "Crédito Tradicional",
+        family: "Adquisición",
+        creditos: 100,
+        monto: 10_000,
+        ticket_promedio: 100
+      },
+      {
+        product: "Mejoravit",
+        family: "Mejoramiento",
+        creditos: 40,
+        monto: 2_000,
+        ticket_promedio: 50
+      },
+      {
+        product: "Producto invalido",
+        family: "Otro",
+        creditos: 0,
+        monto: 0,
+        ticket_promedio: 0
+      }
+    ],
+    metadata: {
+      warnings: ["Comparacion mensual YTD: no incluye anios completos."]
     }
   };
 }

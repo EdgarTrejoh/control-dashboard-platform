@@ -3,6 +3,7 @@ import { fail, type Result } from "@/platform/errors/app-error";
 import { serverFetchJson, serverFetchText } from "@/platform/http/server-fetch";
 import { toInfonavitSearchParams } from "@/modules/infonavit/api/period";
 import type {
+  InfonavitAnalyticsSeriesResponse,
   InfonavitExtendedReportJson,
   InfonavitHealthResponse,
   ReportPeriod
@@ -11,6 +12,7 @@ import type {
 type InfonavitEndpoint =
   | "/health"
   | "/db/health"
+  | "/mini-report/analytics/series/json"
   | "/mini-report/extended/json"
   | "/mini-report/extended/markdown";
 
@@ -52,6 +54,13 @@ export async function dbHealth() {
 export async function extendedJson(period: ReportPeriod) {
   return fetchInfonavitJson<InfonavitExtendedReportJson>(
     "/mini-report/extended/json",
+    period
+  );
+}
+
+export async function analyticsSeries(period: ReportPeriod) {
+  return fetchInfonavitJson<InfonavitAnalyticsSeriesResponse>(
+    "/mini-report/analytics/series/json",
     period
   );
 }

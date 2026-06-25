@@ -1,134 +1,37 @@
-export type FamilyComparisonPoint = {
-  family: string;
-  currentAmount: number;
-  previousAmount: number;
+import type {
+  InfonavitAnalyticsBcgItem,
+  InfonavitAnalyticsSeriesItem,
+  InfonavitAnalyticsSeriesResponse
+} from "@/modules/infonavit/types";
+
+export type AnalyticsMonthlyPoint = {
+  periodKey: string;
+  label: string;
+  creditos: number;
+  monto: number;
+  ticketPromedio: number | null;
+  montoReal: number | null;
+  ticketReal: number | null;
 };
 
-export type FamilyBcgPoint = {
+export type AnalyticsBcgPoint = {
+  product: string;
   family: string;
-  ticketAverage: number;
-  credits: number;
-  amount: number;
+  creditos: number;
+  monto: number;
+  ticketPromedio: number;
 };
 
-export type InfonavitFamilyAnalytics = {
-  comparisonSeries: FamilyComparisonPoint[];
-  bcgSeries: FamilyBcgPoint[];
+export type InfonavitAnalyticsViewModel = {
+  monthlySeries: AnalyticsMonthlyPoint[];
+  bcgSeries: AnalyticsBcgPoint[];
   warnings: string[];
-  hasLineFamilyAnalysis: boolean;
-  hasFamilies: boolean;
-  incompleteFamilies: string[];
+  hasSeries: boolean;
+  hasBcg: boolean;
 };
 
-export function buildInfonavitFamilyAnalytics(
-  report: Record<string, unknown>
-): InfonavitFamilyAnalytics {
-  const lineFamilyAnalysis = report.line_family_analysis;
-
-  if (!isRecord(lineFamilyAnalysis)) {
-    return emptyAnalytics(
-      "No existe line_family_analysis en el JSON extendido actual.",
-      false,
-      false
-    );
-  }
-
-  if (!Array.isArray(lineFamilyAnalysis.families)) {
-    return emptyAnalytics(
-      "line_family_analysis no contiene un arreglo families utilizable.",
-      true,
-      false
-    );
-  }
-
-  if (lineFamilyAnalysis.families.length === 0) {
-    return emptyAnalytics(
-      "line_family_analysis.families está vacío.",
-      true,
-      false
-    );
-  }
-
-  const comparisonSeries: FamilyComparisonPoint[] = [];
-  const bcgSeries: FamilyBcgPoint[] = [];
-  const incompleteFamilies: string[] = [];
-
-  for (const item of lineFamilyAnalysis.families) {
-    if (!isRecord(item)) {
-      incompleteFamilies.push("Familia sin estructura válida");
-      continue;
-    }
-
-    const family = readFamilyName(item);
-    const current = isRecord(item.current) ? item.current : null;
-    const previous = isRecord(item.previous) ? item.previous : null;
-    const currentAmount = current ? toNumber(current.monto) : null;
-    const previousAmount = previous ? toNumber(previous.monto) : null;
-    const currentCredits = current ? toNumber(current.creditos) : null;
-    const currentTicketAverage = current ? toNumber(current.ticket_promedio) : null;
-
-    if (currentAmount !== null && previousAmount !== null) {
-      comparisonSeries.push({
-        family,
-        currentAmount,
-        previousAmount
-      });
-    }
-
-    if (
-      currentAmount !== null &&
-      currentAmount > 0 &&
-      currentCredits !== null &&
-      currentCredits > 0 &&
-      currentTicketAverage !== null &&
-      currentTicketAverage > 0
-    ) {
-      bcgSeries.push({
-        family,
-        ticketAverage: currentTicketAverage,
-        credits: currentCredits,
-        amount: currentAmount
-      });
-    }
-
-    if (
-      currentAmount === null ||
-      previousAmount === null ||
-      currentCredits === null ||
-      currentTicketAverage === null
-    ) {
-      incompleteFamilies.push(family);
-    }
-  }
-
-  const warnings: string[] = [];
-
-  if (comparisonSeries.length === 0) {
-    warnings.push(
-      "No hay familias con monto actual y monto previo suficientes para comparar."
-    );
-  }
-
-  if (bcgSeries.length === 0) {
-    warnings.push(
-      "No hay familias con monto, créditos y ticket promedio actual suficientes para BCG."
-    );
-  }
-
-  if (incompleteFamilies.length > 0) {
-    warnings.push(
-      `Familias con datos incompletos: ${incompleteFamilies.join(", ")}.`
-    );
-  }
-
-  return {
-    comparisonSeries,
-    bcgSeries,
-    warnings,
-    hasLineFamilyAnalysis: true,
-    hasFamilies: true,
-    incompleteFamilies
-  };
+export function buildBcgPointKey(point: AnalyticsBcgPoint, index: number) {
+  return `${point.family}-${point.product}-${index}`;
 }
 
 export function calculateTicketAverage(amount: number, credits: number) {
@@ -139,25 +42,204 @@ export function calculateTicketAverage(amount: number, credits: number) {
   return amount / credits;
 }
 
-function emptyAnalytics(
-  warning: string,
-  hasLineFamilyAnalysis: boolean,
-  hasFamilies: boolean
-): InfonavitFamilyAnalytics {
+export function buildInfonavitAnalyticsViewModel(
+  payload: InfonavitAnalyticsSeriesResponse | null
+): InfonavitAnalyticsViewModel {
+  if (!payload) {
+    return {
+      monthlySeries: [],
+      bcgSeries: [],
+      warnings: ["Carga el reporte para consultar analytics mensual."],
+      hasSeries: false,
+      hasBcg: false
+    };
+  }
+
+  const series = Array.isArray(payload.series) ? payload.series : [];
+  const bcg = Array.isArray(payload.bcg) ? payload.bcg : [];
+  const monthlySeries = buildMonthlySeries(series);
+  const bcgSeries = buildBcgSeries(bcg);
+  const warnings = [...readMetadataWarnings(payload)];
+
+  if (series.length === 0) {
+    warnings.push("series[] está vacío; no hay datos mensuales para graficar.");
+  }
+
+  if (bcg.length === 0) {
+    warnings.push("bcg[] está vacío; no hay datos suficientes para BCG.");
+  }
+
+  if (
+    monthlySeries.length > 0 &&
+    monthlySeries.every(
+      (point) => point.montoReal === null && point.ticketReal === null
+    )
+  ) {
+    warnings.push("Dato real no disponible para la comparación nominal vs real.");
+  }
+
   return {
-    comparisonSeries: [],
-    bcgSeries: [],
-    warnings: [warning],
-    hasLineFamilyAnalysis,
-    hasFamilies,
-    incompleteFamilies: []
+    monthlySeries,
+    bcgSeries,
+    warnings,
+    hasSeries: monthlySeries.length > 0,
+    hasBcg: bcgSeries.length > 0
   };
 }
 
-function readFamilyName(item: Record<string, unknown>) {
-  return typeof item.family === "string" && item.family.trim() !== ""
-    ? item.family.trim()
-    : "Familia sin nombre";
+function buildMonthlySeries(
+  series: InfonavitAnalyticsSeriesItem[]
+): AnalyticsMonthlyPoint[] {
+  const groups = new Map<
+    string,
+    {
+      label: string;
+      creditos: number;
+      monto: number;
+      montoReal: number;
+      hasMontoReal: boolean;
+      ticketRealTotal: number;
+      ticketRealCount: number;
+    }
+  >();
+
+  for (const item of series) {
+    const period = readPeriod(item);
+    const creditos = toNumber(item.creditos);
+    const monto = toNumber(item.monto);
+
+    if (!period || creditos === null || monto === null) {
+      continue;
+    }
+
+    const group = groups.get(period.key) ?? {
+      label: period.label,
+      creditos: 0,
+      monto: 0,
+      montoReal: 0,
+      hasMontoReal: false,
+      ticketRealTotal: 0,
+      ticketRealCount: 0
+    };
+    const montoReal = toNumber(item.monto_real);
+    const ticketReal = toNumber(item.ticket_real);
+
+    group.creditos += creditos;
+    group.monto += monto;
+
+    if (montoReal !== null) {
+      group.montoReal += montoReal;
+      group.hasMontoReal = true;
+    }
+
+    if (ticketReal !== null) {
+      group.ticketRealTotal += ticketReal;
+      group.ticketRealCount += 1;
+    }
+
+    groups.set(period.key, group);
+  }
+
+  return Array.from(groups.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([periodKey, group]) => ({
+      periodKey,
+      label: group.label,
+      creditos: group.creditos,
+      monto: group.monto,
+      ticketPromedio: calculateTicketAverage(group.monto, group.creditos),
+      montoReal: group.hasMontoReal ? group.montoReal : null,
+      ticketReal:
+        group.ticketRealCount > 0
+          ? group.ticketRealTotal / group.ticketRealCount
+          : group.hasMontoReal
+            ? calculateTicketAverage(group.montoReal, group.creditos)
+            : null
+    }));
+}
+
+function buildBcgSeries(bcg: InfonavitAnalyticsBcgItem[]): AnalyticsBcgPoint[] {
+  return bcg
+    .map((item) => {
+      const creditos = toNumber(item.creditos);
+      const monto = toNumber(item.monto);
+      const ticketPromedio = toNumber(item.ticket_promedio);
+      const product = readProductName(item);
+
+      if (
+        !product ||
+        creditos === null ||
+        creditos <= 0 ||
+        monto === null ||
+        monto <= 0 ||
+        ticketPromedio === null ||
+        ticketPromedio <= 0
+      ) {
+        return null;
+      }
+
+      return {
+        product,
+        family: readFamilyName(item) ?? product,
+        creditos,
+        monto,
+        ticketPromedio
+      };
+    })
+    .filter((item): item is AnalyticsBcgPoint => item !== null);
+}
+
+function readMetadataWarnings(payload: InfonavitAnalyticsSeriesResponse) {
+  return Array.isArray(payload.metadata?.warnings)
+    ? payload.metadata.warnings.filter(
+        (warning): warning is string =>
+          typeof warning === "string" && warning.trim() !== ""
+      )
+    : [];
+}
+
+function readPeriod(item: InfonavitAnalyticsSeriesItem) {
+  if (typeof item.period === "string" && item.period.trim() !== "") {
+    const match = item.period.match(/(20\d{2})[-/](0?[1-9]|1[0-2])/);
+    if (match) {
+      const year = Number(match[1]);
+      const month = Number(match[2]);
+      return {
+        key: `${year}-${String(month).padStart(2, "0")}`,
+        label: `${monthShortLabel(month)} ${year}`
+      };
+    }
+
+    return {
+      key: item.period,
+      label: item.period
+    };
+  }
+
+  const year = toNumber(item.year ?? item.anio);
+  const month = toNumber(item.month ?? item.mes);
+
+  if (year === null || month === null || month < 1 || month > 12) {
+    return null;
+  }
+
+  const roundedYear = Math.trunc(year);
+  const roundedMonth = Math.trunc(month);
+
+  return {
+    key: `${roundedYear}-${String(roundedMonth).padStart(2, "0")}`,
+    label: `${monthShortLabel(roundedMonth)} ${roundedYear}`
+  };
+}
+
+function readProductName(item: InfonavitAnalyticsBcgItem) {
+  const value = item.product ?? item.producto;
+  return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+}
+
+function readFamilyName(item: InfonavitAnalyticsBcgItem) {
+  const value = item.family ?? item.familia;
+  return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
 }
 
 function toNumber(value: unknown) {
@@ -178,6 +260,21 @@ function toNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+function monthShortLabel(month: number) {
+  const labels = [
+    "Ene",
+    "Feb",
+    "Mar",
+    "Abr",
+    "May",
+    "Jun",
+    "Jul",
+    "Ago",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dic"
+  ];
+
+  return labels[month - 1] ?? `M${month}`;
 }

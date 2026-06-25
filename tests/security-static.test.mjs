@@ -123,6 +123,21 @@ test("db-health route is gated with server-side session and admin capability han
   assert.equal(handler.includes("X-API-Key"), false);
 });
 
+test("analytics series route is gated server-side with view_report handler", async () => {
+  const route = await readFile(
+    join(root, "app", "api", "infonavit", "analytics", "series", "route.ts"),
+    "utf8"
+  );
+
+  assert.match(route, /getCurrentPlatformSession/);
+  assert.match(route, /handleExtendedReportRequest/);
+  assert.match(route, /getAnalyticsSeries/);
+  assert.match(route, /view_analytics_series/);
+  assert.equal(route.includes("INFONAVIT_API_KEY"), false);
+  assert.equal(route.includes("AUTH_GOOGLE_SECRET"), false);
+  assert.equal(route.includes("X-API-Key"), false);
+});
+
 test("executable source does not add direct Supabase clients", async () => {
   const files = await collectFiles(root);
   const offenders = [];

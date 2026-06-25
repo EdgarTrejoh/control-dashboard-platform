@@ -1,11 +1,12 @@
 "use client";
 
 import {
-  Bar,
-  BarChart,
   CartesianGrid,
   Cell,
+  ComposedChart,
   Legend,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Scatter,
   ScatterChart,
@@ -14,104 +15,123 @@ import {
   YAxis,
   ZAxis
 } from "recharts";
-import { buildInfonavitFamilyAnalytics } from "@/modules/infonavit/adapters/analytics-series";
-import type {
-  FamilyBcgPoint,
-  FamilyComparisonPoint
+import {
+  buildBcgPointKey,
+  buildInfonavitAnalyticsViewModel
 } from "@/modules/infonavit/adapters/analytics-series";
-import type { InfonavitExtendedReportJson } from "@/modules/infonavit/types";
+import type {
+  AnalyticsBcgPoint,
+  AnalyticsMonthlyPoint
+} from "@/modules/infonavit/adapters/analytics-series";
+import type { InfonavitAnalyticsSeriesResponse } from "@/modules/infonavit/types";
 
 type AnalyticsDashboardProps = {
-  report: InfonavitExtendedReportJson | null;
+  analytics: InfonavitAnalyticsSeriesResponse | null;
 };
 
-const FAMILY_COLORS = [
+type MetricKey = "creditos" | "monto" | "ticketPromedio";
+
+const SERIES_COLORS = [
   "#0f766e",
   "#2563eb",
   "#c2410c",
   "#7c3aed",
   "#0891b2",
-  "#be123c"
+  "#be123c",
+  "#4d7c0f",
+  "#9333ea"
 ];
 
-export function AnalyticsDashboard({ report }: AnalyticsDashboardProps) {
-  const analytics = report
-    ? buildInfonavitFamilyAnalytics(report)
-    : buildInfonavitFamilyAnalytics({});
+export function AnalyticsDashboard({ analytics }: AnalyticsDashboardProps) {
+  const viewModel = buildInfonavitAnalyticsViewModel(analytics);
 
   return (
     <section className="grid gap-4">
       <div className="rounded-md border border-line bg-white p-4">
         <h2 className="text-lg font-semibold text-ink">Análisis ejecutivo</h2>
         <p className="mt-1 text-sm text-slate-700">
-          Visualizaciones construidas con datos agregados existentes en{" "}
-          <code>line_family_analysis.families</code>.
-        </p>
-        <p className="mt-3 rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
-          La evolución mensual requiere un endpoint de series mensuales; el JSON
-          actual solo permite comparativos agregados.
+          Visualizaciones construidas con <code>series[]</code> y{" "}
+          <code>bcg[]</code> del endpoint mensual protegido.
         </p>
 
-        {analytics.warnings.length > 0 ? (
-          <div className="mt-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
-            {analytics.warnings.map((warning) => (
+        {viewModel.warnings.length > 0 ? (
+          <div className="mt-4 rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
+            {viewModel.warnings.map((warning) => (
               <p key={warning}>{warning}</p>
             ))}
           </div>
         ) : null}
       </div>
 
+      <div className="grid gap-4 lg:grid-cols-3">
+        <MonthlyLineChart
+          metric="creditos"
+          points={viewModel.monthlySeries}
+          title="Evolución mensual del número de créditos"
+          valueFormatter={formatInteger}
+        />
+        <MonthlyLineChart
+          metric="monto"
+          points={viewModel.monthlySeries}
+          title="Evolución mensual del monto"
+          valueFormatter={formatCurrencyCompact}
+        />
+        <MonthlyLineChart
+          metric="ticketPromedio"
+          points={viewModel.monthlySeries}
+          title="Evolución mensual del ticket promedio"
+          valueFormatter={formatCurrencyCompact}
+        />
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-2">
-        <FamilyAmountComparisonChart points={analytics.comparisonSeries} />
-        <FamilyBcgChart points={analytics.bcgSeries} />
+        <BcgChart points={viewModel.bcgSeries} />
+        <NominalRealChart points={viewModel.monthlySeries} />
       </div>
     </section>
   );
 }
 
-function FamilyAmountComparisonChart({
-  points
+function MonthlyLineChart({
+  metric,
+  points,
+  title,
+  valueFormatter
 }: {
-  points: FamilyComparisonPoint[];
+  metric: MetricKey;
+  points: AnalyticsMonthlyPoint[];
+  title: string;
+  valueFormatter: (value: number) => string;
 }) {
+  const chartPoints = points.map((point) => ({
+    label: point.label,
+    value: point[metric]
+  }));
+  const hasValues = chartPoints.some((point) => point.value !== null);
+
   return (
     <section className="rounded-md border border-line bg-white p-4">
-      <h3 className="text-sm font-semibold text-ink">
-        Comparativo por familia: monto actual vs previo
-      </h3>
-      <p className="text-xs text-slate-600">
-        Fuente: familia, monto actual y monto previo del JSON extendido.
-      </p>
-
-      {points.length === 0 ? (
+      <h3 className="text-sm font-semibold text-ink">{title}</h3>
+      {!hasValues ? (
         <EmptyChartMessage />
       ) : (
-        <div className="mt-3 h-80">
+        <div className="mt-3 h-56">
           <ResponsiveContainer height="100%" width="100%">
-            <BarChart data={points} margin={{ bottom: 24, left: 8, right: 8, top: 16 }}>
+            <LineChart data={chartPoints} margin={{ bottom: 8, right: 8, top: 16 }}>
               <CartesianGrid stroke="#e2e8f0" />
-              <XAxis
-                dataKey="family"
-                interval={0}
-                tick={{ fontSize: 11 }}
-                tickLine={false}
-              />
-              <YAxis tickFormatter={formatCurrencyCompact} />
+              <XAxis dataKey="label" />
+              <YAxis tickFormatter={valueFormatter} />
               <Tooltip formatter={formatTooltipValue} />
-              <Legend />
-              <Bar
-                dataKey="currentAmount"
-                fill="#0f766e"
-                name="Monto actual"
-                radius={[4, 4, 0, 0]}
+              <Line
+                connectNulls
+                dataKey="value"
+                dot={false}
+                name="Valor"
+                stroke="#0f766e"
+                strokeWidth={2.5}
+                type="monotone"
               />
-              <Bar
-                dataKey="previousAmount"
-                fill="#94a3b8"
-                name="Monto previo"
-                radius={[4, 4, 0, 0]}
-              />
-            </BarChart>
+            </LineChart>
           </ResponsiveContainer>
         </div>
       )}
@@ -119,14 +139,14 @@ function FamilyAmountComparisonChart({
   );
 }
 
-function FamilyBcgChart({ points }: { points: FamilyBcgPoint[] }) {
+function BcgChart({ points }: { points: AnalyticsBcgPoint[] }) {
   return (
     <section className="rounded-md border border-line bg-white p-4">
       <h3 className="text-sm font-semibold text-ink">
-        BCG actual por familia
+        BCG mensual por producto
       </h3>
       <p className="text-xs text-slate-600">
-        X: ticket promedio, Y: créditos, tamaño: monto actual.
+        X: ticket promedio, Y: créditos, tamaño: monto.
       </p>
 
       {points.length === 0 ? (
@@ -137,29 +157,114 @@ function FamilyBcgChart({ points }: { points: FamilyBcgPoint[] }) {
             <ScatterChart margin={{ bottom: 16, left: 8, right: 16, top: 16 }}>
               <CartesianGrid stroke="#e2e8f0" />
               <XAxis
-                dataKey="ticketAverage"
+                dataKey="ticketPromedio"
                 name="Ticket promedio"
                 tickFormatter={formatCurrencyCompact}
                 type="number"
               />
               <YAxis
-                dataKey="credits"
+                dataKey="creditos"
                 name="Créditos"
                 tickFormatter={formatInteger}
                 type="number"
               />
-              <ZAxis dataKey="amount" name="Monto actual" range={[80, 900]} />
+              <ZAxis dataKey="monto" name="Monto" range={[80, 900]} />
               <Tooltip content={<BcgTooltip />} cursor={{ strokeDasharray: "3 3" }} />
               <Legend />
-              <Scatter data={points} name="Familias">
+              <Scatter data={points} name="Productos">
                 {points.map((point, index) => (
                   <Cell
-                    fill={FAMILY_COLORS[index % FAMILY_COLORS.length]}
-                    key={point.family}
+                    fill={SERIES_COLORS[index % SERIES_COLORS.length]}
+                    key={buildBcgPointKey(point, index)}
                   />
                 ))}
               </Scatter>
             </ScatterChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function NominalRealChart({ points }: { points: AnalyticsMonthlyPoint[] }) {
+  const hasRealValues = points.some(
+    (point) => point.montoReal !== null || point.ticketReal !== null
+  );
+
+  return (
+    <section className="rounded-md border border-line bg-white p-4">
+      <h3 className="text-sm font-semibold text-ink">
+        Comparativo nominal vs real
+      </h3>
+      <p className="text-xs text-slate-600">
+        Monto en eje izquierdo; ticket promedio en eje derecho.
+      </p>
+
+      {points.length === 0 ? (
+        <EmptyChartMessage />
+      ) : !hasRealValues ? (
+        <div className="mt-3 flex h-52 items-center justify-center rounded-md border border-dashed border-line bg-slate-50 p-4 text-center text-sm text-slate-600">
+          Dato real no disponible para esta visualización.
+        </div>
+      ) : (
+        <div className="mt-3 h-80">
+          <ResponsiveContainer height="100%" width="100%">
+            <ComposedChart data={points} margin={{ bottom: 8, right: 16, top: 16 }}>
+              <CartesianGrid stroke="#e2e8f0" />
+              <XAxis dataKey="label" />
+              <YAxis
+                tickFormatter={formatCurrencyCompact}
+                yAxisId="amount"
+              />
+              <YAxis
+                orientation="right"
+                tickFormatter={formatCurrencyCompact}
+                yAxisId="ticket"
+              />
+              <Tooltip formatter={formatTooltipValue} />
+              <Legend />
+              <Line
+                dataKey="monto"
+                dot={false}
+                name="Monto nominal"
+                stroke="#0f766e"
+                strokeWidth={2.5}
+                type="monotone"
+                yAxisId="amount"
+              />
+              <Line
+                connectNulls
+                dataKey="montoReal"
+                dot={false}
+                name="Monto real"
+                stroke="#14b8a6"
+                strokeDasharray="5 4"
+                strokeWidth={2.5}
+                type="monotone"
+                yAxisId="amount"
+              />
+              <Line
+                dataKey="ticketPromedio"
+                dot={false}
+                name="Ticket nominal"
+                stroke="#2563eb"
+                strokeWidth={2.5}
+                type="monotone"
+                yAxisId="ticket"
+              />
+              <Line
+                connectNulls
+                dataKey="ticketReal"
+                dot={false}
+                name="Ticket real"
+                stroke="#c2410c"
+                strokeDasharray="5 4"
+                strokeWidth={2.5}
+                type="monotone"
+                yAxisId="ticket"
+              />
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
       )}
@@ -172,7 +277,7 @@ function BcgTooltip({
   payload
 }: {
   active?: boolean;
-  payload?: Array<{ payload?: FamilyBcgPoint }>;
+  payload?: Array<{ payload?: AnalyticsBcgPoint }>;
 }) {
   const point = payload?.[0]?.payload;
 
@@ -182,10 +287,11 @@ function BcgTooltip({
 
   return (
     <div className="rounded-md border border-line bg-white p-3 text-xs shadow-sm">
-      <p className="font-semibold text-ink">{point.family}</p>
-      <p>Créditos: {formatInteger(point.credits)}</p>
-      <p>Monto: {formatCurrencyCompact(point.amount)}</p>
-      <p>Ticket: {formatCurrencyCompact(point.ticketAverage)}</p>
+      <p className="font-semibold text-ink">{point.product}</p>
+      <p>Familia: {point.family}</p>
+      <p>Créditos: {formatInteger(point.creditos)}</p>
+      <p>Monto: {formatCurrencyCompact(point.monto)}</p>
+      <p>Ticket: {formatCurrencyCompact(point.ticketPromedio)}</p>
     </div>
   );
 }

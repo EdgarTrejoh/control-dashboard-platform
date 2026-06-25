@@ -11,6 +11,7 @@ import { PeriodSelector } from "@/modules/infonavit/components/period-selector";
 import { ReportSummary } from "@/modules/infonavit/components/report-summary";
 import type {
   ClientApiError,
+  InfonavitAnalyticsSeriesResponse,
   InfonavitExtendedReportJson,
   ReportPayload,
   ReportPeriod
@@ -106,12 +107,15 @@ export function InfonavitDashboard() {
       params.set("month_limit", String(period.monthLimit));
     }
 
-    const [jsonResult, markdownResult] = await Promise.all([
+    const [jsonResult, markdownResult, analyticsResult] = await Promise.all([
       fetchClient<InfonavitExtendedReportJson>(
         `/api/infonavit/extended/json?${params.toString()}`
       ),
       fetchClient<{ markdown: string }>(
         `/api/infonavit/extended/markdown?${params.toString()}`
+      ),
+      fetchClient<InfonavitAnalyticsSeriesResponse>(
+        `/api/infonavit/analytics/series?${params.toString()}`
       )
     ]);
 
@@ -131,10 +135,15 @@ export function InfonavitDashboard() {
 
     setReport({
       json: jsonResult.data,
-      markdown: markdownResult.data.markdown
+      markdown: markdownResult.data.markdown,
+      analytics: analyticsResult.ok ? analyticsResult.data : null
     });
     setReportState("ok");
-    setReportMessage("Reporte extendido disponible.");
+    setReportMessage(
+      analyticsResult.ok
+        ? "Reporte extendido y analytics mensual disponibles."
+        : `Reporte extendido disponible. Analytics mensual no disponible: ${analyticsResult.message}`
+    );
     setTab("analytics");
   }
 
@@ -261,7 +270,7 @@ export function InfonavitDashboard() {
         ) : null}
 
         {tab === "analytics" ? (
-          <AnalyticsDashboard report={report?.json ?? null} />
+          <AnalyticsDashboard analytics={report?.analytics ?? null} />
         ) : null}
         {tab === "summary" ? <ReportSummary report={report?.json ?? null} /> : null}
         {tab === "markdown" ? (
