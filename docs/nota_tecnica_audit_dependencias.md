@@ -1,5 +1,12 @@
 # Nota tecnica - Audit de dependencias Fase 1
 
+> **Nota de vigencia documental**
+>
+> Este documento se conserva como evidencia historica de la fase o decision que describe.
+> El estado operativo vigente del proyecto se documenta en
+> `docs/ESTADO_ACTUAL_CLOSED_ALPHA.md`.
+> Si existe diferencia entre este documento y el baseline vigente, prevalece el baseline.
+
 ## Contexto
 
 Despues de reinstalar dependencias con Node 22 LTS, `npm install` reporto:

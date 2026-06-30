@@ -1,5 +1,12 @@
 # Fase 1 - Definición cerrada
 
+> **Nota de vigencia documental**
+>
+> Este documento se conserva como evidencia historica de la fase o decision que describe.
+> El estado operativo vigente del proyecto se documenta en
+> `docs/ESTADO_ACTUAL_CLOSED_ALPHA.md`.
+> Si existe diferencia entre este documento y el baseline vigente, prevalece el baseline.
+
 Proyecto: `003_control_dashboard_platform`
 
 Fase 1 define la primera implementación funcional read-only de la plataforma usando INFONAVIT como primer módulo conectado. Esta especificación está lista para revisión y aprobación antes de una ronda posterior de implementación controlada.

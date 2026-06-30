@@ -1,5 +1,12 @@
 # Closed Alpha - UX/Auth hardening previo a invitados
 
+> **Nota de vigencia documental**
+>
+> Este documento se conserva como evidencia historica de la fase o decision que describe.
+> El estado operativo vigente del proyecto se documenta en
+> `docs/ESTADO_ACTUAL_CLOSED_ALPHA.md`.
+> Si existe diferencia entre este documento y el baseline vigente, prevalece el baseline.
+
 ## Contexto
 
 Este ajuste prepara la closed alpha antes de invitar usuarios reales. Closed Alpha 1 ya implemento Google login con Auth.js y allowlist server-side. Closed Alpha 2 ya protegio endpoints de reporte con `view_report`. Closed Alpha 3 ya agrego observabilidad ligera de activacion.

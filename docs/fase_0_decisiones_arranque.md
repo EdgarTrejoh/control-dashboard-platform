@@ -1,5 +1,12 @@
 # Fase 0 - Decisiones de arranque
 
+> **Nota de vigencia documental**
+>
+> Este documento se conserva como evidencia historica de la fase o decision que describe.
+> El estado operativo vigente del proyecto se documenta en
+> `docs/ESTADO_ACTUAL_CLOSED_ALPHA.md`.
+> Si existe diferencia entre este documento y el baseline vigente, prevalece el baseline.
+
 Proyecto: `003_control_dashboard_platform`
 
 Este documento consolida las decisiones de arranque para construir una plataforma reusable de reportería económica y tableros analíticos. INFONAVIT será el primer módulo conectado, no el límite arquitectónico del proyecto.

@@ -1,5 +1,12 @@
 # Closed Alpha 3 - Observabilidad minima
 
+> **Nota de vigencia documental**
+>
+> Este documento se conserva como evidencia historica de la fase o decision que describe.
+> El estado operativo vigente del proyecto se documenta en
+> `docs/ESTADO_ACTUAL_CLOSED_ALPHA.md`.
+> Si existe diferencia entre este documento y el baseline vigente, prevalece el baseline.
+
 ## Finalidad
 
 Closed Alpha 3 agrega observabilidad minima server-side para entender si la alpha funciona, detectar errores y verificar controles de acceso.

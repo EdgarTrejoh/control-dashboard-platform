@@ -1,5 +1,12 @@
 # Fase 2A.1B - Modelo de datos de identidad, auditoria y uso
 
+> **Nota de vigencia documental**
+>
+> Este documento se conserva como evidencia historica de la fase o decision que describe.
+> El estado operativo vigente del proyecto se documenta en
+> `docs/ESTADO_ACTUAL_CLOSED_ALPHA.md`.
+> Si existe diferencia entre este documento y el baseline vigente, prevalece el baseline.
+
 ## Resumen ejecutivo
 
 Fase 2A.1B define el modelo conceptual de almacenamiento para identidad, usuarios, roles, capabilities, auditoria de seguridad, metricas de uso, preferencias y secretos de `control-dashboard-platform`.

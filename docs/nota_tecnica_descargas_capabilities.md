@@ -1,5 +1,12 @@
 # Nota tecnica: descargas Markdown/JSON y capabilities
 
+> **Nota de vigencia documental**
+>
+> Este documento se conserva como evidencia historica de la fase o decision que describe.
+> El estado operativo vigente del proyecto se documenta en
+> `docs/ESTADO_ACTUAL_CLOSED_ALPHA.md`.
+> Si existe diferencia entre este documento y el baseline vigente, prevalece el baseline.
+
 ## Contexto
 
 Fase 1 de `control-dashboard-platform` opera en entorno local/controlado.

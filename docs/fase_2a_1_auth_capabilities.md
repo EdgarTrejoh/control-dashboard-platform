@@ -1,5 +1,12 @@
 # Fase 2A.1 - Modelo server-side de sesion y capabilities
 
+> **Nota de vigencia documental**
+>
+> Este documento se conserva como evidencia historica de la fase o decision que describe.
+> El estado operativo vigente del proyecto se documenta en
+> `docs/ESTADO_ACTUAL_CLOSED_ALPHA.md`.
+> Si existe diferencia entre este documento y el baseline vigente, prevalece el baseline.
+
 ## Contexto
 
 Fase 2A.1 prepara el modelo base para evaluar permisos en servidor.

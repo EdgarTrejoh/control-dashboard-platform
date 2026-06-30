@@ -1,5 +1,12 @@
 # Frontend Strategy - Economic Strategic Report
 
+> **Nota de vigencia documental**
+>
+> Este documento se conserva como evidencia historica de la fase o decision que describe.
+> El estado operativo vigente del proyecto se documenta en
+> `docs/ESTADO_ACTUAL_CLOSED_ALPHA.md`.
+> Si existe diferencia entre este documento y el baseline vigente, prevalece el baseline.
+
 ## 1. Objetivo
 
 Definir la estrategia inicial para construir un frontend que consuma la API `infonavit-strategic-report-api` sin afectar la estabilidad del backend actual validado en Cloud Run.
