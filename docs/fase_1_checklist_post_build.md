@@ -1,5 +1,12 @@
 # Fase 1 - Checklist post-build auditado
 
+> **Nota de vigencia documental**
+>
+> Este documento se conserva como evidencia historica de la fase o decision que describe.
+> El estado operativo vigente del proyecto se documenta en
+> `docs/ESTADO_ACTUAL_CLOSED_ALPHA.md`.
+> Si existe diferencia entre este documento y el baseline vigente, prevalece el baseline.
+
 Fecha de actualizacion: 2026-06-23
 
 Estado: APROBADO CON OBSERVACIONES
